@@ -131,3 +131,152 @@ function parseScanResultFallback(text: string | undefined): ScanResult | null {
     return null;
   }
 }
+
+const SafeOrderInputSchema = z.object({
+  dishName: z.string(),
+  flaggedIngredients: z.array(z.string()).default([]),
+  restrictions: z.array(z.string()).default([]),
+  customNotes: z.string().default(""),
+  safetyLevel: z.enum(["CAUTION", "AVOID"]),
+});
+
+const SafeOrderResultSchema = z.object({
+  modifications: z.array(z.string()),
+  safe_substitutions: z.array(z.string()),
+  custom_server_script: z.string(),
+});
+
+export type SafeOrderResult = z.infer<typeof SafeOrderResultSchema>;
+
+export const generateSafeOrderOptions = createServerFn({ method: "POST" })
+  .validator((input: unknown) => SafeOrderInputSchema.parse(input))
+  .handler(async ({ data }) => {
+    const lovableApiKey = process.env.LOVABLE_API_KEY;
+    if (!lovableApiKey) {
+      throw new Error("Missing LOVABLE_API_KEY");
+    }
+
+    const gateway = createLovableAiGatewayProvider(lovableApiKey);
+    const model = gateway("google/gemini-3.6-flash");
+
+    const prompt = `You are NutriGuard's expert culinary safety assistant.
+A user is ordering "${data.dishName}" which was rated ${data.safetyLevel}.
+Flagged ingredients/concerns: ${data.flaggedIngredients.join(", ") || "General safety concerns"}
+User dietary restrictions: ${data.restrictions.join(", ") || "None specified"}
+User custom notes: ${data.customNotes || "None"}
+
+Provide concrete, highly practical instructions for how the user can order this dish safely or customize it at a restaurant. Return a JSON object with these exact fields:
+- modifications: array of 2-4 clear, step-by-step kitchen customization requests (e.g., "Ask for sauce on the side", "Specify gluten-free tamari instead of soy sauce")
+- safe_substitutions: array of 2-3 safe ingredient or side substitutions (e.g., "Substitute steamed rice for egg fried rice", "Swap peanut dressing for olive oil & lemon")
+- custom_server_script: a 2-3 sentence polite, direct script the user can say or read aloud to their server to ensure their dietary needs are communicated safely and clearly.`;
+
+    try {
+      const { output } = await generateText({
+        model,
+        messages: [{ role: "user", content: prompt }],
+        output: Output.object({
+          schema: SafeOrderResultSchema,
+        }),
+      });
+
+      return output as SafeOrderResult;
+    } catch (error) {
+      if (NoObjectGeneratedError.isInstance(error)) {
+        const fallback = parseSafeOrderFallback(error.text);
+        if (fallback) return fallback;
+      }
+      throw error;
+    }
+  });
+
+function parseSafeOrderFallback(text: string | undefined): SafeOrderResult | null {
+  if (!text) return null;
+  try {
+    const cleaned = text.replace(/^```json\s*|\s*```$/g, "").trim();
+    const parsed = JSON.parse(cleaned);
+    return SafeOrderResultSchema.parse(parsed);
+  } catch {
+    return null;
+  }
+}
+
+export const BatchMenuItemSchema = z.object({
+  dish_name: z.string(),
+  safety_level: z.enum(["SAFE", "CAUTION", "AVOID"]),
+  detected_allergens: z.array(z.string()).default([]),
+  brief_summary: z.string(),
+});
+
+export type BatchMenuItem = z.infer<typeof BatchMenuItemSchema>;
+
+export const BatchMenuResultSchema = z.object({
+  items: z.array(BatchMenuItemSchema),
+});
+
+export type BatchMenuResult = z.infer<typeof BatchMenuResultSchema>;
+
+const BatchMenuInputSchema = z.object({
+  imageBase64: z.string(),
+  restrictions: z.array(z.string()).default([]),
+  customNotes: z.string().default(""),
+});
+
+export const analyzeBatchMenu = createServerFn({ method: "POST" })
+  .validator((input: unknown) => BatchMenuInputSchema.parse(input))
+  .handler(async ({ data }) => {
+    const lovableApiKey = process.env.LOVABLE_API_KEY;
+    if (!lovableApiKey) {
+      throw new Error("Missing LOVABLE_API_KEY");
+    }
+
+    const gateway = createLovableAiGatewayProvider(lovableApiKey);
+    const model = gateway("google/gemini-3.6-flash");
+
+    const prompt = `You are NutriGuard's Instant Allergen Radar for scanning complete menu pages.
+Analyze the provided menu image and extract ALL distinct dishes visible on the menu page.
+
+User dietary restrictions: ${data.restrictions.join(", ") || "None specified"}
+User custom notes: ${data.customNotes || "None"}
+
+Return a JSON object containing an "items" array where each object has:
+- dish_name: string (exact or normalized name of the dish as listed on the menu)
+- safety_level: "SAFE" | "CAUTION" | "AVOID" (based on user restrictions and ingredients)
+- detected_allergens: array of strings listing flagged ingredients or allergens matching user restrictions (empty array if SAFE)
+- brief_summary: 1 clear sentence explaining why it is Safe, Caution, or Avoid for the user.`;
+
+    const content = [
+      { type: "text" as const, text: prompt },
+      { type: "image" as const, image: data.imageBase64 },
+    ];
+
+    try {
+      const { output } = await generateText({
+        model,
+        messages: [{ role: "user", content }],
+        output: Output.object({
+          schema: BatchMenuResultSchema,
+        }),
+      });
+
+      return output as BatchMenuResult;
+    } catch (error) {
+      if (NoObjectGeneratedError.isInstance(error)) {
+        const fallback = parseBatchMenuFallback(error.text);
+        if (fallback) return fallback;
+      }
+      throw error;
+    }
+  });
+
+function parseBatchMenuFallback(text: string | undefined): BatchMenuResult | null {
+  if (!text) return null;
+  try {
+    const cleaned = text.replace(/^```json\s*|\s*```$/g, "").trim();
+    const parsed = JSON.parse(cleaned);
+    return BatchMenuResultSchema.parse(parsed);
+  } catch {
+    return null;
+  }
+}
+
+

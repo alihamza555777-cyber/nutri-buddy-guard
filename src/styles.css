@@ -6,10 +6,7 @@
 
 /*
  * NutriGuard design system.
- *
- * Friendly, organic palette: fresh greens, warm neutrals, and approachable
- * roundness. All colors use oklch format and are exposed as semantic Tailwind
- * tokens via @theme inline.
+ * Primary brand green updated to #008000.
  */
 
 @theme inline {
@@ -27,8 +24,8 @@
   --color-card-foreground: var(--card-foreground);
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: #008000;
+  --color-primary-foreground: #ffffff;
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
@@ -39,25 +36,38 @@
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
-  --color-ring: var(--ring);
+  --color-ring: #008000;
   --color-ring-offset-background: var(--background);
-  --color-chart-1: var(--chart-1);
+  --color-chart-1: #008000;
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: #008000;
+  --color-sidebar-primary-foreground: #ffffff;
   --color-sidebar-accent: var(--sidebar-accent);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-ring: #008000;
+
+  /* Global Emerald color palette mapped to #008000 brand color */
+  --color-emerald-50: #e6f2e6;
+  --color-emerald-100: #d6ebd6;
+  --color-emerald-200: #c2e5c2;
+  --color-emerald-300: #99d699;
+  --color-emerald-400: #4da64d;
+  --color-emerald-500: #008000;
+  --color-emerald-600: #008000;
+  --color-emerald-700: #006600;
+  --color-emerald-800: #004d00;
+  --color-emerald-900: #003300;
+  --color-emerald-950: #001a00;
 
   /* NutriGuard semantic surface tokens */
-  --color-success: var(--success);
-  --color-success-foreground: var(--success-foreground);
+  --color-success: #008000;
+  --color-success-foreground: #ffffff;
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
   --color-danger: var(--danger);
@@ -69,7 +79,7 @@
 :root {
   --radius: 0.875rem;
 
-  /* Warm cream background with forest-green type */
+  /* Background and foreground */
   --background: oklch(0.985 0.005 95);
   --foreground: oklch(0.25 0.03 150);
 
@@ -78,32 +88,30 @@
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.25 0.03 150);
 
-  /* Fresh leaf green primary */
-  --primary: oklch(0.62 0.16 145);
-  --primary-foreground: oklch(0.99 0.005 100);
+  /* Primary #008000 */
+  --primary: #008000;
+  --primary-foreground: #ffffff;
 
-  /* Soft sage secondary */
+  /* Soft secondary */
   --secondary: oklch(0.94 0.025 140);
   --secondary-foreground: oklch(0.3 0.04 150);
 
   --muted: oklch(0.95 0.015 130);
   --muted-foreground: oklch(0.5 0.04 150);
 
-  /* Warm amber accent */
   --accent: oklch(0.8 0.11 75);
   --accent-foreground: oklch(0.25 0.05 75);
 
-  /* Coral red for destructive */
   --destructive: oklch(0.58 0.2 25);
   --destructive-foreground: oklch(0.99 0.005 100);
 
   --border: oklch(0.9 0.02 130);
   --input: oklch(0.9 0.02 130);
-  --ring: oklch(0.62 0.16 145);
+  --ring: #008000;
 
   /* Semantic status colors */
-  --success: oklch(0.65 0.15 145);
-  --success-foreground: oklch(0.99 0.005 100);
+  --success: #008000;
+  --success-foreground: #ffffff;
   --warning: oklch(0.82 0.12 85);
   --warning-foreground: oklch(0.3 0.05 85);
   --danger: oklch(0.58 0.2 25);
@@ -111,8 +119,7 @@
   --info: oklch(0.65 0.1 220);
   --info-foreground: oklch(0.25 0.05 220);
 
-  /* Chart accents */
-  --chart-1: oklch(0.62 0.16 145);
+  --chart-1: #008000;
   --chart-2: oklch(0.8 0.11 75);
   --chart-3: oklch(0.55 0.15 220);
   --chart-4: oklch(0.65 0.14 30);
@@ -120,12 +127,12 @@
 
   --sidebar: oklch(0.97 0.01 120);
   --sidebar-foreground: oklch(0.25 0.03 150);
-  --sidebar-primary: oklch(0.62 0.16 145);
-  --sidebar-primary-foreground: oklch(0.99 0.005 100);
+  --sidebar-primary: #008000;
+  --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: oklch(0.94 0.025 140);
   --sidebar-accent-foreground: oklch(0.3 0.04 150);
   --sidebar-border: oklch(0.9 0.02 130);
-  --sidebar-ring: oklch(0.62 0.16 145);
+  --sidebar-ring: #008000;
 }
 
 .dark {
@@ -137,8 +144,8 @@
   --popover: oklch(0.24 0.03 150);
   --popover-foreground: oklch(0.97 0.01 120);
 
-  --primary: oklch(0.72 0.14 145);
-  --primary-foreground: oklch(0.15 0.03 150);
+  --primary: #008000;
+  --primary-foreground: #ffffff;
 
   --secondary: oklch(0.3 0.04 150);
   --secondary-foreground: oklch(0.97 0.01 120);
@@ -154,10 +161,10 @@
 
   --border: oklch(1 0 0 / 12%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.72 0.14 145);
+  --ring: #008000;
 
-  --success: oklch(0.72 0.14 145);
-  --success-foreground: oklch(0.15 0.03 150);
+  --success: #008000;
+  --success-foreground: #ffffff;
   --warning: oklch(0.82 0.12 85);
   --warning-foreground: oklch(0.2 0.05 85);
   --danger: oklch(0.65 0.18 25);
@@ -165,7 +172,7 @@
   --info: oklch(0.7 0.08 220);
   --info-foreground: oklch(0.99 0.005 220);
 
-  --chart-1: oklch(0.72 0.14 145);
+  --chart-1: #008000;
   --chart-2: oklch(0.8 0.11 75);
   --chart-3: oklch(0.65 0.12 220);
   --chart-4: oklch(0.7 0.13 30);
@@ -173,12 +180,12 @@
 
   --sidebar: oklch(0.22 0.03 150);
   --sidebar-foreground: oklch(0.97 0.01 120);
-  --sidebar-primary: oklch(0.72 0.14 145);
-  --sidebar-primary-foreground: oklch(0.15 0.03 150);
+  --sidebar-primary: #008000;
+  --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: oklch(0.3 0.04 150);
   --sidebar-accent-foreground: oklch(0.97 0.01 120);
   --sidebar-border: oklch(1 0 0 / 12%);
-  --sidebar-ring: oklch(0.72 0.14 145);
+  --sidebar-ring: #008000;
 }
 
 @layer base {

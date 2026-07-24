@@ -13,7 +13,8 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { supabase } from "@/integrations/supabase/client";
 import { User } from "@supabase/supabase-js";
-import { Leaf, Menu, X, Scan, History, User as UserIcon } from "lucide-react";
+import { Leaf, Menu, X, Scan, ScanLine, History, User as UserIcon, UtensilsCrossed, ShieldAlert, Camera } from "lucide-react";
+import { DigitalWaiterCardModal } from "@/components/DigitalWaiterCardModal";
 
 function NotFoundComponent() {
   return (
@@ -122,6 +123,8 @@ function RootComponent() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isWaiterCardOpen, setIsWaiterCardOpen] = useState(false);
+  const [profileData, setProfileData] = useState<{ dietary_flags?: string[] | null; custom_notes?: string | null } | null>(null);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data.user ?? null));
@@ -141,6 +144,19 @@ function RootComponent() {
     };
   }, [router, queryClient]);
 
+  useEffect(() => {
+    if (user) {
+      supabase
+        .from("profiles")
+        .select("dietary_flags, custom_notes")
+        .eq("id", user.id)
+        .single()
+        .then(({ data }) => setProfileData(data ?? null));
+    } else {
+      setProfileData(null);
+    }
+  }, [user]);
+
   return (
     <QueryClientProvider client={queryClient}>
       <div className="min-h-screen flex flex-col bg-background">
@@ -155,11 +171,20 @@ function RootComponent() {
 
             <nav className="hidden items-center gap-1 md:flex">
               <NavLink to="/">Scanner</NavLink>
+              <NavLink to="/menu-radar">Menu Radar</NavLink>
               <NavLink to="/history">History</NavLink>
               <NavLink to="/profile">Profile</NavLink>
             </nav>
 
             <div className="hidden items-center gap-3 md:flex">
+              <button
+                type="button"
+                onClick={() => setIsWaiterCardOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200/80 bg-emerald-50 px-4 py-2 text-xs font-bold text-emerald-600 transition hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+              >
+                <UtensilsCrossed className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                Dining Out Mode
+              </button>
               {user ? (
                 <button
                   onClick={async () => {
@@ -195,8 +220,19 @@ function RootComponent() {
             <div className="border-t border-border/60 px-4 py-3 md:hidden">
               <nav className="flex flex-col gap-1">
                 <MobileNavLink to="/" onClick={() => setMobileMenuOpen(false)}>Scanner</MobileNavLink>
+                <MobileNavLink to="/menu-radar" onClick={() => setMobileMenuOpen(false)}>Menu Radar</MobileNavLink>
                 <MobileNavLink to="/history" onClick={() => setMobileMenuOpen(false)}>History</MobileNavLink>
                 <MobileNavLink to="/profile" onClick={() => setMobileMenuOpen(false)}>Profile</MobileNavLink>
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    setIsWaiterCardOpen(true);
+                  }}
+                  className="flex items-center gap-2 rounded-xl border border-emerald-200/80 bg-emerald-50 px-4 py-3 text-left text-sm font-bold text-emerald-600 transition hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+                >
+                  <UtensilsCrossed className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                  Dining Out Mode (Waiter Card)
+                </button>
                 {user ? (
                   <button
                     onClick={async () => {
@@ -235,6 +271,15 @@ function RootComponent() {
         </footer>
 
         <MobileBottomNav />
+
+        <DesktopCameraFAB />
+
+        <DigitalWaiterCardModal
+          isOpen={isWaiterCardOpen}
+          onClose={() => setIsWaiterCardOpen(false)}
+          initialRestrictions={profileData?.dietary_flags ?? []}
+          initialCustomNotes={profileData?.custom_notes ?? ""}
+        />
       </div>
     </QueryClientProvider>
   );
@@ -267,34 +312,91 @@ function MobileNavLink({ to, onClick, children }: { to: string; onClick: () => v
   );
 }
 
+function DesktopCameraFAB() {
+  const { state } = useRouter();
+  const pathname = state.location.pathname;
+  const isCameraPage = pathname === "/" || pathname === "/menu-radar";
+
+  if (!isCameraPage) return null;
+
+  return (
+    <button
+      type="button"
+      onClick={() => window.dispatchEvent(new CustomEvent("nutriguard-open-camera"))}
+      className="hidden md:flex fixed bottom-8 right-8 z-50 items-center gap-2.5 rounded-full bg-[#008000] px-5 py-3.5 text-sm font-bold text-white shadow-2xl transition-all hover:scale-105 hover:bg-[#006600] active:scale-95 cursor-pointer border-2 border-white/20"
+      title="Instant Camera Scan"
+    >
+      <Camera className="h-5 w-5 text-white" />
+      <span>Instant Camera Scan</span>
+    </button>
+  );
+}
+
 function MobileBottomNav() {
   const { state } = useRouter();
   const pathname = state.location.pathname;
+  const isCameraPage = pathname === "/" || pathname === "/menu-radar";
 
-  const tabs = [
-    { to: "/", label: "Scan", icon: Scan },
-    { to: "/history", label: "History", icon: History },
-    { to: "/profile", label: "Profile", icon: UserIcon },
-  ] as const;
+  const triggerCamera = () => {
+    window.dispatchEvent(new CustomEvent("nutriguard-open-camera"));
+  };
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-white/90 backdrop-blur-md border-t border-slate-200">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-lg">
       <div className="mx-auto flex h-16 max-w-md items-center justify-around px-2">
-        {tabs.map(({ to, label, icon: Icon }) => {
-          const active = pathname === to;
-          return (
-            <Link
-              key={to}
-              to={to}
-              className={`flex flex-1 flex-col items-center justify-center gap-1 py-2 transition-colors ${
-                active ? "text-primary" : "text-muted-foreground hover:text-foreground"
-              }`}
+        <Link
+          to="/"
+          className={`flex flex-1 flex-col items-center justify-center gap-1 py-2 transition-colors ${
+            pathname === "/" ? "text-[#008000] font-semibold" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Scan className="h-5 w-5" strokeWidth={pathname === "/" ? 2.5 : 2} />
+          <span className={`text-xs ${pathname === "/" ? "font-semibold text-[#008000]" : "font-medium"}`}>Scan</span>
+        </Link>
+
+        <Link
+          to="/menu-radar"
+          className={`flex flex-1 flex-col items-center justify-center gap-1 py-2 transition-colors ${
+            pathname === "/menu-radar" ? "text-[#008000] font-semibold" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <ScanLine className="h-5 w-5" strokeWidth={pathname === "/menu-radar" ? 2.5 : 2} />
+          <span className={`text-xs ${pathname === "/menu-radar" ? "font-semibold text-[#008000]" : "font-medium"}`}>Radar</span>
+        </Link>
+
+        {/* Elevated Mobile Circular Camera FAB */}
+        {isCameraPage && (
+          <div className="flex flex-col items-center justify-center relative -top-4 px-1">
+            <button
+              type="button"
+              onClick={triggerCamera}
+              className="flex h-14 w-14 items-center justify-center rounded-full bg-[#008000] text-white shadow-xl border-4 border-white transition-transform hover:scale-105 hover:bg-[#006600] active:scale-95 cursor-pointer"
+              title="Instant Camera Scan"
             >
-              <Icon className="h-5 w-5" strokeWidth={active ? 2.5 : 2} />
-              <span className={`text-xs font-medium ${active ? "font-semibold" : ""}`}>{label}</span>
-            </Link>
-          );
-        })}
+              <Camera className="h-6 w-6 text-white" />
+            </button>
+          </div>
+        )}
+
+        <Link
+          to="/history"
+          className={`flex flex-1 flex-col items-center justify-center gap-1 py-2 transition-colors ${
+            pathname === "/history" ? "text-[#008000] font-semibold" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <History className="h-5 w-5" strokeWidth={pathname === "/history" ? 2.5 : 2} />
+          <span className={`text-xs ${pathname === "/history" ? "font-semibold text-[#008000]" : "font-medium"}`}>History</span>
+        </Link>
+
+        <Link
+          to="/profile"
+          className={`flex flex-1 flex-col items-center justify-center gap-1 py-2 transition-colors ${
+            pathname === "/profile" ? "text-[#008000] font-semibold" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <UserIcon className="h-5 w-5" strokeWidth={pathname === "/profile" ? 2.5 : 2} />
+          <span className={`text-xs ${pathname === "/profile" ? "font-semibold text-[#008000]" : "font-medium"}`}>Profile</span>
+        </Link>
       </div>
     </nav>
   );

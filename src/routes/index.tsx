@@ -1,10 +1,16 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useRef, useEffect } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { analyzeFood, saveScan, type ScanResult } from "@/lib/scan.functions";
+import {
+  analyzeFood,
+  saveScan,
+  analyzeBatchMenu,
+  type ScanResult,
+  type BatchMenuItem,
+} from "@/lib/scan.functions";
 import { getProfile } from "@/lib/profile.functions";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import {
   Camera,
@@ -18,8 +24,20 @@ import {
   ChevronRight,
   Leaf,
   User,
+  Sparkles,
+  Plus,
+  X,
+  FileText,
+  AlertCircle,
+  ScanLine,
 } from "lucide-react";
 import heroFood from "@/assets/hero-food.png";
+import { SafeOrderModal } from "@/components/SafeOrderModal";
+import { DailyBudgetDashboard } from "@/components/DailyBudgetDashboard";
+import { DigitalWaiterCardModal } from "@/components/DigitalWaiterCardModal";
+import { BatchMenuResults } from "@/components/BatchMenuResults";
+import { WebcamScannerModal } from "@/components/WebcamScannerModal";
+import { CameraViewfinderModal } from "@/components/CameraViewfinderModal";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -48,7 +66,11 @@ const RESTRICTION_OPTIONS = [
   "Keto",
 ];
 
+const GUEST_RESTRICTIONS_KEY = "nutriguard_guest_restrictions";
+const GUEST_NOTES_KEY = "nutriguard_guest_notes";
+
 function HomePage() {
+  const queryClient = useQueryClient();
   const analyze = useServerFn(analyzeFood);
   const save = useServerFn(saveScan);
   const getProfileFn = useServerFn(getProfile);
@@ -59,11 +81,18 @@ function HomePage() {
   const [imageBase64, setImageBase64] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [restrictions, setRestrictions] = useState<string[]>([]);
+  const [customRestrictionInput, setCustomRestrictionInput] = useState("");
   const [customNotes, setCustomNotes] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ScanResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isSafeModalOpen, setIsSafeModalOpen] = useState(false);
+  const [isWaiterModalOpen, setIsWaiterModalOpen] = useState(false);
+  const [isWebcamModalOpen, setIsWebcamModalOpen] = useState(false);
+  const [isCameraViewfinderOpen, setIsCameraViewfinderOpen] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const { data: profile } = useQuery({
     queryKey: ["profile"],
@@ -81,11 +110,87 @@ function HomePage() {
   }, []);
 
   useEffect(() => {
+    try {
+      const savedRestrictions = localStorage.getItem(GUEST_RESTRICTIONS_KEY);
+      const savedNotes = localStorage.getItem(GUEST_NOTES_KEY);
+      if (savedRestrictions) {
+        const parsed = JSON.parse(savedRestrictions);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setRestrictions((prev) => Array.from(new Set([...prev, ...parsed])));
+        }
+      }
+      if (savedNotes) {
+        setCustomNotes((prev) => (prev ? prev : savedNotes));
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
     if (profile) {
-      setRestrictions(profile.dietary_flags ?? []);
-      setCustomNotes(profile.custom_notes ?? "");
+      const profileFlags = profile.dietary_flags ?? [];
+      setRestrictions((prev) => Array.from(new Set([...profileFlags, ...prev])));
+      if (profile.custom_notes) {
+        setCustomNotes(profile.custom_notes);
+      }
     }
   }, [profile]);
+
+  useEffect(() => {
+    const handleOpenCamera = () => setIsCameraViewfinderOpen(true);
+    window.addEventListener("nutriguard-open-camera", handleOpenCamera);
+    return () => window.removeEventListener("nutriguard-open-camera", handleOpenCamera);
+  }, []);
+
+  async function executeInstantScan(base64Data: string, fileObj?: File) {
+    setImageBase64(base64Data);
+    if (fileObj) setImageFile(fileObj);
+    setTab("image");
+    setError(null);
+    setResult(null);
+    setLoading(true);
+
+    try {
+      const data = await analyze({
+        data: {
+          inputType: "image",
+          dishInput: base64Data,
+          restrictions,
+          customNotes,
+          targetCalories: profile?.target_calories ?? null,
+          targetProtein: profile?.target_protein ?? null,
+        },
+      });
+      setResult(data);
+
+      if (user) {
+        let imageUrl: string | null = null;
+        if (fileObj) {
+          const path = `${user.id}/${Date.now()}-${fileObj.name}`;
+          const { data: uploadData, error: uploadError } = await supabase.storage
+            .from("scan-images")
+            .upload(path, fileObj);
+          if (!uploadError && uploadData) {
+            const { data: signedData, error: signedError } = await supabase.storage
+              .from("scan-images")
+              .createSignedUrl(uploadData.path, 60 * 60 * 24 * 365);
+            imageUrl = signedError ? uploadData.path : signedData?.signedUrl ?? null;
+          }
+        }
+        await save({
+          data: {
+            inputType: "image",
+            imageUrl,
+            result: data,
+          },
+        });
+        queryClient.invalidateQueries({ queryKey: ["today-summary"] });
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Analysis failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function handleAnalyze(e: React.FormEvent) {
     e.preventDefault();
@@ -133,6 +238,7 @@ function HomePage() {
             result: data,
           },
         });
+        queryClient.invalidateQueries({ queryKey: ["today-summary"] });
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Analysis failed. Please try again.");
@@ -141,19 +247,71 @@ function HomePage() {
     }
   }
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleWebcamCapture(base64Image: string) {
+    executeInstantScan(base64Image);
+  }
+
+  function handleNativeCameraCapture(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    setImageFile(file);
     const reader = new FileReader();
-    reader.onloadend = () => setImageBase64(reader.result as string);
+    reader.onloadend = () => {
+      if (reader.result) {
+        executeInstantScan(reader.result as string, file);
+      }
+    };
     reader.readAsDataURL(file);
   }
 
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (reader.result) {
+        executeInstantScan(reader.result as string, file);
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function saveGuestState(newRestrictions: string[], newNotes: string) {
+    try {
+      localStorage.setItem(GUEST_RESTRICTIONS_KEY, JSON.stringify(newRestrictions));
+      localStorage.setItem(GUEST_NOTES_KEY, newNotes);
+    } catch {}
+  }
+
   function toggleRestriction(name: string) {
-    setRestrictions((prev) =>
-      prev.includes(name) ? prev.filter((r) => r !== name) : [...prev, name]
-    );
+    setRestrictions((prev) => {
+      const next = prev.includes(name) ? prev.filter((r) => r !== name) : [...prev, name];
+      saveGuestState(next, customNotes);
+      return next;
+    });
+  }
+
+  function handleAddCustomRestriction() {
+    const trimmed = customRestrictionInput.trim();
+    if (!trimmed) return;
+    if (!restrictions.includes(trimmed)) {
+      const next = [...restrictions, trimmed];
+      setRestrictions(next);
+      saveGuestState(next, customNotes);
+    }
+    setCustomRestrictionInput("");
+  }
+
+  function removeCustomRestriction(name: string) {
+    setRestrictions((prev) => {
+      const next = prev.filter((r) => r !== name);
+      saveGuestState(next, customNotes);
+      return next;
+    });
+  }
+
+  function handleNotesChange(value: string) {
+    setCustomNotes(value);
+    saveGuestState(restrictions, value);
   }
 
   return (
@@ -179,6 +337,14 @@ function HomePage() {
                   <ChevronRight className="ml-1 h-4 w-4" />
                 </Link>
               )}
+              <button
+                type="button"
+                onClick={() => setIsWaiterModalOpen(true)}
+                className="inline-flex items-center justify-center rounded-full border border-emerald-200/80 bg-emerald-50 px-6 py-3 text-sm font-bold text-emerald-600 shadow-xs transition-all hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+              >
+                <Utensils className="mr-2 h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                Dining Out Mode (Waiter Card)
+              </button>
               <Link
                 to="/profile"
                 className="inline-flex items-center justify-center rounded-full border border-input bg-background px-6 py-3 text-sm font-medium text-foreground transition-colors hover:bg-accent"
@@ -200,6 +366,11 @@ function HomePage() {
         </div>
       </section>
 
+      {/* Daily Budget Dashboard */}
+      <section className="mt-10">
+        <DailyBudgetDashboard userId={user?.id} />
+      </section>
+
       {/* Scanner card */}
       <section className="mt-10">
         <div className="rounded-3xl border border-border bg-card p-6 shadow-sm sm:p-8">
@@ -219,10 +390,13 @@ function HomePage() {
             <div className="mb-6 inline-flex rounded-full bg-muted p-1">
               <button
                 type="button"
-                onClick={() => setTab("text")}
+                onClick={() => {
+                  setTab("text");
+                  setResult(null);
+                }}
                 className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-colors ${
                   tab === "text"
-                    ? "bg-card text-foreground shadow-sm"
+                    ? "bg-card text-foreground shadow-xs"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -231,15 +405,18 @@ function HomePage() {
               </button>
               <button
                 type="button"
-                onClick={() => setTab("image")}
+                onClick={() => {
+                  setTab("image");
+                  setResult(null);
+                }}
                 className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-colors ${
                   tab === "image"
-                    ? "bg-card text-foreground shadow-sm"
+                    ? "bg-card text-foreground shadow-xs"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 <Camera className="h-4 w-4" />
-                Upload photo
+                Single dish photo
               </button>
             </div>
 
@@ -258,28 +435,60 @@ function HomePage() {
                 />
               </div>
             ) : (
-              <div className="mb-6">
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="flex w-full flex-col items-center justify-center rounded-2xl border-2 border-dashed border-input bg-background px-4 py-10 text-center transition-colors hover:bg-accent"
-                >
-                  {imageBase64 ? (
+              <div className="mb-6 space-y-4">
+                <div className="flex flex-wrap items-center gap-3">
+                  {/* Primary Open Live Camera Button */}
+                  <button
+                    type="button"
+                    onClick={() => setIsCameraViewfinderOpen(true)}
+                    className="inline-flex items-center gap-2 rounded-full bg-[#008000] px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-[#006600] active:scale-95 cursor-pointer"
+                  >
+                    <Camera className="h-4 w-4 text-white" />
+                    <span>📷 Open Live Camera</span>
+                  </button>
+
+                  {/* Upload Photo Button */}
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 cursor-pointer"
+                  >
+                    <Upload className="h-4 w-4 text-slate-600 dark:text-slate-400" />
+                    <span>Upload photo</span>
+                  </button>
+                </div>
+
+                {/* Uploaded / Captured Image Preview Box */}
+                {imageBase64 && (
+                  <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 p-2 dark:border-slate-800 dark:bg-slate-900">
                     <img
                       src={imageBase64}
-                      alt="Selected food"
-                      className="mb-4 h-48 w-full rounded-xl object-cover"
+                      alt="Captured dish"
+                      className="h-48 w-full rounded-xl object-cover"
                     />
-                  ) : (
-                    <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-secondary text-secondary-foreground">
-                      <Upload className="h-6 w-6" />
-                    </div>
-                  )}
-                  <span className="text-sm font-medium text-card-foreground">
-                    {imageBase64 ? "Tap to change photo" : "Tap to upload a menu or food photo"}
-                  </span>
-                  <span className="mt-1 text-xs text-muted-foreground">PNG, JPG up to 5 MB</span>
-                </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setImageBase64(null);
+                        setImageFile(null);
+                      }}
+                      className="absolute top-4 right-4 rounded-full bg-slate-900/80 p-1.5 text-white backdrop-blur-xs transition hover:bg-slate-900"
+                      title="Clear photo"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
+
+                {/* Hidden native camera & file inputs */}
+                <input
+                  ref={cameraInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={handleNativeCameraCapture}
+                />
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -292,7 +501,7 @@ function HomePage() {
 
             <div className="mb-6">
               <label className="mb-2 block text-sm font-medium text-card-foreground">
-                Your dietary restrictions
+                Your dietary restrictions & allergies
               </label>
               <div className="flex flex-wrap gap-2">
                 {RESTRICTION_OPTIONS.map((name) => (
@@ -309,18 +518,63 @@ function HomePage() {
                     {name}
                   </button>
                 ))}
+
+                {/* Custom restrictions pills */}
+                {restrictions
+                  .filter((r) => !RESTRICTION_OPTIONS.includes(r))
+                  .map((name) => (
+                    <span
+                      key={name}
+                      className="inline-flex items-center gap-1.5 rounded-full bg-[#008000] px-3.5 py-1.5 text-sm font-semibold text-white shadow-xs"
+                    >
+                      <span>{name}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeCustomRestriction(name)}
+                        className="rounded-full p-0.5 transition hover:bg-[#006600]"
+                        title="Remove restriction"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </span>
+                  ))}
+              </div>
+
+              {/* Refactored Compact + Add Custom Allergen Input */}
+              <div className="mt-3 flex items-center gap-2 max-w-md">
+                <input
+                  type="text"
+                  value={customRestrictionInput}
+                  onChange={(e) => setCustomRestrictionInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleAddCustomRestriction();
+                    }
+                  }}
+                  placeholder="Add custom allergy (e.g. Sesame, Mustard)..."
+                  className="flex-1 rounded-full border border-input bg-background px-4 py-2 text-xs text-foreground outline-none ring-ring focus:ring-2"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddCustomRestriction}
+                  className="inline-flex h-9 shrink-0 items-center gap-1 rounded-full border border-[#008000]/20 bg-[#008000]/10 px-4 text-xs font-semibold text-[#008000] transition-all hover:bg-[#008000]/20"
+                >
+                  <Plus className="h-3.5 w-3.5 text-[#008000]" />
+                  <span>Add Custom</span>
+                </button>
               </div>
             </div>
 
             <div className="mb-6">
               <label htmlFor="notes" className="mb-2 block text-sm font-medium text-card-foreground">
-                Custom notes
+                Custom notes & medical conditions
               </label>
               <textarea
                 id="notes"
                 value={customNotes}
-                onChange={(e) => setCustomNotes(e.target.value)}
-                placeholder="e.g., Sensitive to soy sauce, trying to keep sodium low"
+                onChange={(e) => handleNotesChange(e.target.value)}
+                placeholder="e.g., Severe celiac disease, strict cross-contamination risk, sensitive to soy sauce"
                 rows={3}
                 className="w-full rounded-2xl border border-input bg-background px-4 py-3 text-foreground outline-none ring-ring focus:ring-2"
               />
@@ -333,7 +587,7 @@ function HomePage() {
             <button
               type="submit"
               disabled={loading}
-              className="inline-flex w-full items-center justify-center rounded-full bg-primary py-3.5 text-base font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-70 sm:w-auto sm:px-10"
+              className="inline-flex w-full items-center justify-center rounded-full bg-[#008000] py-3.5 text-base font-semibold text-white shadow-md transition-colors hover:bg-[#006600] disabled:opacity-70 sm:w-auto sm:px-10"
             >
               {loading && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
               {loading ? "Analyzing..." : "Analyze food with AI"}
@@ -342,7 +596,7 @@ function HomePage() {
         </div>
       </section>
 
-      {/* Results */}
+      {/* Single Scan Results */}
       {result && (
         <section className="mt-10 space-y-6">
           <div className="rounded-3xl border border-border bg-card p-6 sm:p-8">
@@ -382,11 +636,55 @@ function HomePage() {
               </h4>
               <p className="mt-2 text-info-foreground">{result.waiter_question}</p>
             </div>
+
+            {(result.safety_level === "CAUTION" || result.safety_level === "AVOID") && (
+              <div className="mt-6 border-t border-border pt-6">
+                <button
+                  type="button"
+                  onClick={() => setIsSafeModalOpen(true)}
+                  className="inline-flex w-full items-center justify-center gap-2.5 rounded-2xl bg-[#008000] px-6 py-4 text-base font-bold text-white shadow-md transition-all hover:bg-[#006600] hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-[#008000] focus:ring-offset-2 sm:w-auto"
+                >
+                  <Sparkles className="h-5 w-5" />
+                  Make It Safe — AI Ordering Instructions
+                </button>
+              </div>
+            )}
           </div>
 
           <NutritionGrid result={result} profile={profile ?? null} />
+
+          {result && (result.safety_level === "CAUTION" || result.safety_level === "AVOID") && (
+            <SafeOrderModal
+              isOpen={isSafeModalOpen}
+              onClose={() => setIsSafeModalOpen(false)}
+              dishName={result.dish_name}
+              flaggedIngredients={result.flagged_ingredients}
+              restrictions={restrictions}
+              customNotes={customNotes}
+              safetyLevel={result.safety_level === "AVOID" ? "AVOID" : "CAUTION"}
+            />
+          )}
         </section>
       )}
+
+      <DigitalWaiterCardModal
+        isOpen={isWaiterModalOpen}
+        onClose={() => setIsWaiterModalOpen(false)}
+        initialRestrictions={restrictions}
+        initialCustomNotes={customNotes}
+      />
+
+      <WebcamScannerModal
+        isOpen={isWebcamModalOpen}
+        onClose={() => setIsWebcamModalOpen(false)}
+        onCapture={handleWebcamCapture}
+      />
+
+      <CameraViewfinderModal
+        isOpen={isCameraViewfinderOpen}
+        onClose={() => setIsCameraViewfinderOpen(false)}
+        onCapture={handleWebcamCapture}
+      />
     </div>
   );
 }
