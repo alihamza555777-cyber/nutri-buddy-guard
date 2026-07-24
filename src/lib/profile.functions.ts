@@ -1,0 +1,68 @@
+import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+
+const ProfileUpdateSchema = z.object({
+  dietaryFlags: z.array(z.string()).default([]),
+  targetCalories: z.number().int().nonnegative().nullable().optional(),
+  targetProtein: z.number().int().nonnegative().nullable().optional(),
+  customNotes: z.string().nullable().optional(),
+  notifyEmail: z.boolean().optional(),
+  notifyPush: z.boolean().optional(),
+  notifyScanAlerts: z.boolean().optional(),
+  notifyWeeklySummary: z.boolean().optional(),
+  savedBrands: z.array(z.string().trim().min(1).max(80)).max(100).optional(),
+});
+
+export const getProfile = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data, error } = await context.supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", context.userId)
+      .single();
+
+    if (error) {
+      if (error.code === "PGRST116") {
+        const { data: created, error: createError } = await context.supabase
+          .from("profiles")
+          .insert({ id: context.userId })
+          .select()
+          .single();
+        if (createError) throw createError;
+        return created;
+      }
+      throw error;
+    }
+
+    return data;
+  });
+
+export const updateProfile = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) => ProfileUpdateSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    const update = {
+      dietary_flags: data.dietaryFlags,
+      target_calories: data.targetCalories ?? null,
+      target_protein: data.targetProtein ?? null,
+      custom_notes: data.customNotes ?? null,
+      ...(data.notifyEmail !== undefined && { notify_email: data.notifyEmail }),
+      ...(data.notifyPush !== undefined && { notify_push: data.notifyPush }),
+      ...(data.notifyScanAlerts !== undefined && { notify_scan_alerts: data.notifyScanAlerts }),
+      ...(data.notifyWeeklySummary !== undefined && { notify_weekly_summary: data.notifyWeeklySummary }),
+      ...(data.savedBrands !== undefined && { saved_brands: data.savedBrands }),
+    };
+
+
+    const { data: updated, error } = await context.supabase
+      .from("profiles")
+      .update(update)
+      .eq("id", context.userId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return updated;
+  });

@@ -1,0 +1,9 @@
+# NutriGuard
+
+> AI-powered food and allergen scanner that checks dishes for hidden allergens, breaks down nutrition, and suggests questions to ask restaurant staff.
+
+NutriGuard helps people with dietary restrictions, allergies, or specific macro goals make safer choices when eating out or cooking at home. Users can type a dish name or upload a menu/food photo, set dietary restrictions and targets, and get an AI-generated safety scorecard with nutrition facts and a server-ready question.
+
+## Pagess
+
+- [/](/): Home — scan a dish by text or photo and view the AI safety scorecard.
