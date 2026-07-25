@@ -49,21 +49,58 @@ export interface BatchMenuResult {
 }
 
 /**
- * Validates and retrieves the Groq API key from environment variables.
+ * Validates and retrieves the Groq API key.
+ * 
+ * Resolution order:
+ * 1. import.meta.env.VITE_GROQ_API_KEY — primary: Lovable's Vite config
+ *    performs build-time VITE_* env injection, so this is baked into the
+ *    bundle at build time and works in both client and Nitro/Cloudflare
+ *    server contexts.
+ * 2. process.env fallbacks — for local dev / Node SSR environments where
+ *    process.env is available.
+ * 3. globalThis.__env — some Nitro presets attach env here.
  */
 export function getGroqApiKey(): string {
-  const apiKey =
-    (typeof import.meta !== "undefined" && import.meta.env?.VITE_GROQ_API_KEY) ||
-    (typeof process !== "undefined" && process.env?.VITE_GROQ_API_KEY) ||
-    (typeof process !== "undefined" && process.env?.GROQ_API_KEY) ||
-    "";
+  let key = "";
 
-  if (!apiKey || !apiKey.trim()) {
-    throw new Error("Missing Groq API Key. Please configure VITE_GROQ_API_KEY in Vercel.");
+  // 1. Build-time injected VITE_* (works everywhere in this project)
+  try {
+    key = (import.meta as any).env?.VITE_GROQ_API_KEY ?? "";
+  } catch {
+    // import.meta not available in this context
   }
 
-  return apiKey.trim();
+  // 2. process.env fallbacks (Node / local dev)
+  if (!key) {
+    try {
+      key =
+        (typeof process !== "undefined" && process.env?.VITE_GROQ_API_KEY) ||
+        (typeof process !== "undefined" && process.env?.GROQ_API_KEY) ||
+        "";
+    } catch {
+      // process not available
+    }
+  }
+
+  // 3. globalThis.__env (some Nitro runtimes)
+  if (!key) {
+    try {
+      const gEnv = (globalThis as any).__env;
+      key = gEnv?.VITE_GROQ_API_KEY || gEnv?.GROQ_API_KEY || "";
+    } catch {
+      // not available
+    }
+  }
+
+  if (!key || !key.trim()) {
+    throw new Error(
+      "Missing Groq API Key. Please configure VITE_GROQ_API_KEY in Vercel environment settings (ensure it is enabled for Production, Preview, and Development)."
+    );
+  }
+
+  return key.trim();
 }
+
 
 /**
  * Checks if the Groq API key is properly configured.
