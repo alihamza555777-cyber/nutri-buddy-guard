@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { optionalSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const ProfileUpdateSchema = z.object({
   fullName: z.string().trim().max(50).nullable().optional(),
@@ -19,34 +19,36 @@ const ProfileUpdateSchema = z.object({
 });
 
 export const getProfile = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([optionalSupabaseAuth])
   .handler(async ({ context }) => {
+    const userId = context.userId || context.user?.id;
+    if (!userId || !context.isAuthenticated) {
+      return null;
+    }
+
     const { data, error } = await context.supabase
       .from("profiles")
       .select("*")
-      .eq("id", context.userId)
-      .single();
+      .eq("id", userId)
+      .maybeSingle();
 
-    if (error) {
-      if (error.code === "PGRST116") {
-        const { data: created, error: createError } = await context.supabase
-          .from("profiles")
-          .insert({ id: context.userId })
-          .select()
-          .single();
-        if (createError) throw createError;
-        return created;
-      }
-      throw error;
+    if (error && error.code !== "PGRST116") {
+      console.warn("Could not fetch profile:", error.message);
+      return null;
     }
 
-    return data;
+    return data ?? null;
   });
 
 export const updateProfile = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([optionalSupabaseAuth])
   .validator((input: unknown) => ProfileUpdateSchema.parse(input))
   .handler(async ({ data, context }) => {
+    const userId = context.userId || context.user?.id;
+    if (!userId || !context.isAuthenticated) {
+      throw new Error("Please sign in to update your profile.");
+    }
+
     const update = {
       ...(data.fullName !== undefined && { full_name: data.fullName }),
       ...(data.age !== undefined && { age: data.age }),
@@ -63,11 +65,10 @@ export const updateProfile = createServerFn({ method: "POST" })
       ...(data.savedBrands !== undefined && { saved_brands: data.savedBrands }),
     };
 
-
     const { data: updated, error } = await context.supabase
       .from("profiles")
       .update(update)
-      .eq("id", context.userId)
+      .eq("id", userId)
       .select()
       .single();
 

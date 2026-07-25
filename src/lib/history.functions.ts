@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { optionalSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 export interface TodayNutritionSummary {
   totalCalories: number;
@@ -18,21 +18,48 @@ export interface TodayNutritionSummary {
 }
 
 export const getScanHistory = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([optionalSupabaseAuth])
   .handler(async ({ context }) => {
+    const userId = context.userId || context.user?.id;
+    if (!userId || !context.isAuthenticated) {
+      return [];
+    }
+
     const { data, error } = await context.supabase
       .from("scan_history")
       .select("*")
-      .eq("user_id", context.userId)
+      .eq("user_id", userId)
       .order("created_at", { ascending: false });
 
-    if (error) throw error;
+    if (error) {
+      console.warn("Could not fetch scan history:", error.message);
+      return [];
+    }
     return data ?? [];
   });
 
 export const getTodayNutritionSummary = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([optionalSupabaseAuth])
   .handler(async ({ context }) => {
+    const userId = context.userId || context.user?.id;
+    if (!userId || !context.isAuthenticated) {
+      return {
+        totalCalories: 0,
+        totalProtein: 0,
+        totalCarbs: 0,
+        totalFats: 0,
+        totalFiber: 0,
+        totalSugar: 0,
+        totalSodium: 0,
+        safeCount: 0,
+        cautionCount: 0,
+        avoidCount: 0,
+        totalScans: 0,
+        targetCalories: null,
+        targetProtein: null,
+      };
+    }
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const todayISO = today.toISOString();
@@ -40,15 +67,17 @@ export const getTodayNutritionSummary = createServerFn({ method: "GET" })
     const { data: scans, error: scansError } = await context.supabase
       .from("scan_history")
       .select("*")
-      .eq("user_id", context.userId)
+      .eq("user_id", userId)
       .gte("created_at", todayISO);
 
-    if (scansError) throw scansError;
+    if (scansError) {
+      console.warn("Could not fetch today nutrition summary scans:", scansError.message);
+    }
 
     const { data: profile } = await context.supabase
       .from("profiles")
       .select("target_calories, target_protein")
-      .eq("id", context.userId)
+      .eq("id", userId)
       .maybeSingle();
 
     const summary: TodayNutritionSummary = {
