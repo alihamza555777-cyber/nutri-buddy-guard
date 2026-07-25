@@ -53,39 +53,50 @@ export function sanitizeGeminiPayload(
 }
 
 /**
- * Resolves the Google AI Studio API Key from import.meta.env.VITE_GEMINI_API_KEY
+ * Resolves the Gemini API Key from import.meta.env.VITE_GEMINI_API_KEY
+ * Accepts any non-empty key format (including AQ. and AIzaSy keys).
  */
-export function getGeminiApiKey(): string | null {
-  // Check client-side Vite environment variable directly
-  if (typeof import.meta !== "undefined" && import.meta.env?.VITE_GEMINI_API_KEY) {
-    return import.meta.env.VITE_GEMINI_API_KEY;
+export function getGeminiApiKey(): string {
+  const key =
+    (typeof import.meta !== "undefined" && import.meta.env?.VITE_GEMINI_API_KEY) ||
+    (typeof process !== "undefined" && process.env?.VITE_GEMINI_API_KEY) ||
+    (typeof process !== "undefined" && process.env?.GEMINI_API_KEY) ||
+    (typeof process !== "undefined" && process.env?.LOVABLE_API_KEY) ||
+    "";
+
+  if (!key || !key.trim()) {
+    throw new Error("Gemini API key is missing. Please set VITE_GEMINI_API_KEY in Vercel environment settings.");
   }
-  // Check server-side process.env fallback
-  if (typeof process !== "undefined" && process.env) {
-    return process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || process.env.LOVABLE_API_KEY || null;
-  }
-  return null;
+
+  return key.trim();
 }
 
 /**
  * Validates if the Gemini API key is properly set
  */
 export function isGeminiConfigured(): boolean {
-  const key = getGeminiApiKey();
-  return Boolean(key && key.trim().length > 0 && !key.includes("YOUR_ACTUAL_KEY_HERE"));
+  try {
+    const key = getGeminiApiKey();
+    return Boolean(key && key.trim().length > 0);
+  } catch {
+    return false;
+  }
 }
 
 /**
  * Returns header authorization / key params for Gemini AI API requests
  */
 export function getGeminiAuthHeaders(): Record<string, string> {
-  const apiKey = getGeminiApiKey();
-  if (!apiKey) return {};
-  return {
-    "x-goog-api-key": apiKey,
-    Authorization: `Bearer ${apiKey}`,
-    "Content-Type": "application/json",
-  };
+  try {
+    const apiKey = getGeminiApiKey();
+    return {
+      "x-goog-api-key": apiKey,
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    };
+  } catch {
+    return {};
+  }
 }
 
 export function getGeminiModelName(): string {

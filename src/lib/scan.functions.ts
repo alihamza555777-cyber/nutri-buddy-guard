@@ -3,7 +3,7 @@ import { z } from "zod";
 import { generateText, Output, NoObjectGeneratedError } from "ai";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { createLovableAiGatewayProvider } from "./ai-gateway.server";
-import { sanitizeGeminiPayload } from "@/services/gemini";
+import { sanitizeGeminiPayload, getGeminiApiKey } from "@/services/gemini";
 
 const AnalyzeInputSchema = z.object({
   inputType: z.enum(["text", "image"]),
@@ -34,9 +34,11 @@ export type ScanResult = z.infer<typeof ScanResultSchema>;
 export const analyzeFood = createServerFn({ method: "POST" })
   .validator((input: unknown) => AnalyzeInputSchema.parse(input))
   .handler(async ({ data }) => {
-    const apiKey = process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || process.env.LOVABLE_API_KEY;
-    if (!apiKey) {
-      throw new Error("Gemini API Key missing. Please check VITE_GEMINI_API_KEY in your settings.");
+    let apiKey: string;
+    try {
+      apiKey = getGeminiApiKey();
+    } catch {
+      throw new Error("Gemini API key is missing. Please set VITE_GEMINI_API_KEY in Vercel environment settings.");
     }
 
     const gateway = createLovableAiGatewayProvider(apiKey);
@@ -92,7 +94,7 @@ CRITICAL INSTRUCTIONS:
       console.log("Raw Gemini Response:", text || JSON.stringify(output));
       return output as ScanResult;
     } catch (error: any) {
-      console.error("Gemini API Error Detail:", error);
+      console.error("Gemini API Request Error:", error);
       const rawText = error?.text || error?.rawResponse || null;
       if (rawText) {
         console.log("Raw Gemini Response (Error Text):", rawText);
@@ -111,8 +113,8 @@ CRITICAL INSTRUCTIONS:
         throw new Error("Food analysis server is busy. Please try scanning again in a few seconds.");
       }
 
-      if (errString.includes("valid API key") || errString.includes("INVALID_ARGUMENT") || errString.includes("API Key") || errString.includes("YOUR_ACTUAL_KEY_HERE")) {
-        throw new Error("Invalid Google Gemini API Key. Please update VITE_GEMINI_API_KEY in .env with your real API key from Google AI Studio.");
+      if (errString.includes("missing") || errString.includes("undefined")) {
+        throw new Error("Gemini API key is missing. Please set VITE_GEMINI_API_KEY in Vercel environment settings.");
       }
 
       if (errString.includes("400") || errString.includes("Bad Request") || errString.includes("invalid")) {
