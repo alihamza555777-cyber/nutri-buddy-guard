@@ -271,7 +271,7 @@ function MenuRadarPage() {
               Instant Menu Allergen Radar
             </h1>
             <p className="mt-1 text-xs font-medium text-slate-600 sm:text-sm dark:text-slate-400">
-              Batch Menu Scanner powered by Gemini 3.6 Flash
+              Batch Menu Scanner powered by Groq AI (Llama 3)
             </p>
           </div>
         </div>

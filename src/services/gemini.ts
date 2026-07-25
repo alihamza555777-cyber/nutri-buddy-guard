@@ -1,11 +1,21 @@
 /**
- * Gemini AI Client Service
- * Configured for Google AI Studio API integration in NutriGuard.
- * Uses import.meta.env.VITE_GEMINI_API_KEY directly for client & server initialization.
+ * AI Client Service (Refactored to Groq API)
+ * Re-exports Groq AI service for OpenAI-compatible endpoint food analysis.
  */
 
-export const GEMINI_MODEL = "gemini-2.0-flash";
-export const GEMINI_FALLBACK_MODEL = "gemini-1.5-flash";
+import {
+  getGroqApiKey,
+  isGroqConfigured,
+  GROQ_TEXT_MODEL,
+  GROQ_VISION_MODEL,
+  analyzeFoodWithGroq,
+  cleanJsonResponseText,
+  type GroqFoodAnalysisResult,
+  type AnalyzeFoodOptions,
+} from "./groq";
+
+export const GEMINI_MODEL = GROQ_TEXT_MODEL;
+export const GEMINI_FALLBACK_MODEL = GROQ_VISION_MODEL;
 
 export interface StandardFoodAnalysisJSON {
   dish_name: string;
@@ -25,72 +35,56 @@ export interface StandardFoodAnalysisJSON {
 }
 
 /**
- * Sanitizes Gemini AI content payload generation.
- * Guarantees text-only queries send a clean text prompt without empty/undefined image objects.
+ * Sanitizes payload for Groq OpenAI-compatible format.
  */
 export function sanitizeGeminiPayload(
   dishInput: string,
   isImage: boolean,
   promptText: string
-): Array<{ type: "text" | "image"; text?: string; image?: string }> {
+): Array<{ type: "text" | "image_url"; text?: string; image_url?: { url: string } }> {
   const cleanInput = (dishInput || "").trim();
-  const isValidImage = isImage && cleanInput.length > 0 && (cleanInput.startsWith("data:image/") || cleanInput.startsWith("http"));
+  const isValidImage = isImage && cleanInput.length > 0;
 
   if (isValidImage) {
+    let imageUrl = cleanInput;
+    if (!imageUrl.startsWith("data:image/") && !imageUrl.startsWith("http")) {
+      imageUrl = `data:image/jpeg;base64,${imageUrl}`;
+    }
     return [
-      { type: "text" as const, text: promptText },
-      { type: "image" as const, image: cleanInput },
+      { type: "text", text: promptText },
+      { type: "image_url", image_url: { url: imageUrl } },
     ];
   }
 
-  // Text-only sanitized payload
   return [
     {
-      type: "text" as const,
-      text: `Analyze this dish for nutritional safety, ingredients, and macros: ${cleanInput}\n\n${promptText}`,
+      type: "text",
+      text: `Analyze dish: ${cleanInput}\n\n${promptText}`,
     },
   ];
 }
 
 /**
- * Resolves the Gemini API Key from import.meta.env.VITE_GEMINI_API_KEY
- * Accepts any non-empty key format (including AQ. and AIzaSy keys).
+ * Resolves API key using Groq environment variable (VITE_GROQ_API_KEY)
  */
 export function getGeminiApiKey(): string {
-  const key =
-    (typeof import.meta !== "undefined" && import.meta.env?.VITE_GEMINI_API_KEY) ||
-    (typeof process !== "undefined" && process.env?.VITE_GEMINI_API_KEY) ||
-    (typeof process !== "undefined" && process.env?.GEMINI_API_KEY) ||
-    (typeof process !== "undefined" && process.env?.LOVABLE_API_KEY) ||
-    "";
-
-  if (!key || !key.trim()) {
-    throw new Error("Gemini API key is missing. Please set VITE_GEMINI_API_KEY in Vercel environment settings.");
-  }
-
-  return key.trim();
+  return getGroqApiKey();
 }
 
 /**
- * Validates if the Gemini API key is properly set
+ * Validates if Groq API key is configured
  */
 export function isGeminiConfigured(): boolean {
-  try {
-    const key = getGeminiApiKey();
-    return Boolean(key && key.trim().length > 0);
-  } catch {
-    return false;
-  }
+  return isGroqConfigured();
 }
 
 /**
- * Returns header authorization / key params for Gemini AI API requests
+ * Returns header authorization params for Groq AI requests
  */
 export function getGeminiAuthHeaders(): Record<string, string> {
   try {
-    const apiKey = getGeminiApiKey();
+    const apiKey = getGroqApiKey();
     return {
-      "x-goog-api-key": apiKey,
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     };
@@ -100,5 +94,15 @@ export function getGeminiAuthHeaders(): Record<string, string> {
 }
 
 export function getGeminiModelName(): string {
-  return GEMINI_MODEL;
+  return GROQ_TEXT_MODEL;
 }
+
+export {
+  analyzeFoodWithGroq,
+  cleanJsonResponseText,
+  getGroqApiKey,
+  isGroqConfigured,
+  GROQ_TEXT_MODEL,
+  GROQ_VISION_MODEL,
+};
+export type { GroqFoodAnalysisResult, AnalyzeFoodOptions };
