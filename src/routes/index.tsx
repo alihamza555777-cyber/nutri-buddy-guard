@@ -164,27 +164,31 @@ function HomePage() {
       setResult(data);
 
       if (user) {
-        let imageUrl: string | null = null;
-        if (fileObj) {
-          const path = `${user.id}/${Date.now()}-${fileObj.name}`;
-          const { data: uploadData, error: uploadError } = await supabase.storage
-            .from("scan-images")
-            .upload(path, fileObj);
-          if (!uploadError && uploadData) {
-            const { data: signedData, error: signedError } = await supabase.storage
+        try {
+          let imageUrl: string | null = null;
+          if (fileObj) {
+            const path = `${user.id}/${Date.now()}-${fileObj.name}`;
+            const { data: uploadData, error: uploadError } = await supabase.storage
               .from("scan-images")
-              .createSignedUrl(uploadData.path, 60 * 60 * 24 * 365);
-            imageUrl = signedError ? uploadData.path : signedData?.signedUrl ?? null;
+              .upload(path, fileObj);
+            if (!uploadError && uploadData) {
+              const { data: signedData, error: signedError } = await supabase.storage
+                .from("scan-images")
+                .createSignedUrl(uploadData.path, 60 * 60 * 24 * 365);
+              imageUrl = signedError ? uploadData.path : signedData?.signedUrl ?? null;
+            }
           }
+          await save({
+            data: {
+              inputType: "image",
+              imageUrl,
+              result: data,
+            },
+          });
+          queryClient.invalidateQueries({ queryKey: ["today-summary"] });
+        } catch (saveError) {
+          console.warn("Non-fatal: Could not save scan to history database:", saveError);
         }
-        await save({
-          data: {
-            inputType: "image",
-            imageUrl,
-            result: data,
-          },
-        });
-        queryClient.invalidateQueries({ queryKey: ["today-summary"] });
       }
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : "Analysis failed. Please try again.";
@@ -221,27 +225,31 @@ function HomePage() {
       setResult(data);
 
       if (user) {
-        let imageUrl: string | null = null;
-        if (imageFile) {
-          const path = `${user.id}/${Date.now()}-${imageFile.name}`;
-          const { data: uploadData, error: uploadError } = await supabase.storage
-            .from("scan-images")
-            .upload(path, imageFile);
-          if (!uploadError && uploadData) {
-            const { data: signedData, error: signedError } = await supabase.storage
+        try {
+          let imageUrl: string | null = null;
+          if (imageFile) {
+            const path = `${user.id}/${Date.now()}-${imageFile.name}`;
+            const { data: uploadData, error: uploadError } = await supabase.storage
               .from("scan-images")
-              .createSignedUrl(uploadData.path, 60 * 60 * 24 * 365);
-            imageUrl = signedError ? uploadData.path : signedData?.signedUrl ?? null;
+              .upload(path, imageFile);
+            if (!uploadError && uploadData) {
+              const { data: signedData, error: signedError } = await supabase.storage
+                .from("scan-images")
+                .createSignedUrl(uploadData.path, 60 * 60 * 24 * 365);
+              imageUrl = signedError ? uploadData.path : signedData?.signedUrl ?? null;
+            }
           }
+          await save({
+            data: {
+              inputType: tab,
+              imageUrl,
+              result: data,
+            },
+          });
+          queryClient.invalidateQueries({ queryKey: ["today-summary"] });
+        } catch (saveError) {
+          console.warn("Non-fatal: Could not save scan to history database:", saveError);
         }
-        await save({
-          data: {
-            inputType: tab,
-            imageUrl,
-            result: data,
-          },
-        });
-        queryClient.invalidateQueries({ queryKey: ["today-summary"] });
       }
     } catch (err: any) {
       const errMsg = err instanceof Error ? err.message : "Analysis failed. Please try again.";
