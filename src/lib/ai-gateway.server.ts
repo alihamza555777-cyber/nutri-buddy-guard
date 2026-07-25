@@ -49,7 +49,7 @@ export function createLovableAiGatewayProvider(
   options?: { structuredOutputs?: boolean },
 ) {
   const runIdFetch = createLovableAiGatewayRunIdFetch(initialRunId);
-  const isGoogleKey = apiKey.startsWith("AIzaSy");
+  const isGoogleKey = apiKey.startsWith("AIzaSy") || apiKey.startsWith("AQ.");
 
   const provider = createOpenAICompatible({
     name: isGoogleKey ? "google-gemini" : "lovable",

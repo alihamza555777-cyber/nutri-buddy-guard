@@ -136,7 +136,7 @@ export const saveScan = createServerFn({ method: "POST" })
   .validator((input: unknown) => SaveScanSchema.parse(input))
   .handler(async ({ data, context }) => {
     const user = context.user;
-    const { error } = await context.supabase.from("scans").insert({
+    const { error } = await context.supabase.from("scan_history").insert({
       user_id: user.id,
       dish_name: data.result.dish_name,
       safety_level: data.result.safety_level,
