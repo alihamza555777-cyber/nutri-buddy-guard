@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { generateText, Output, NoObjectGeneratedError } from "ai";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireSupabaseAuth, optionalSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { createLovableAiGatewayProvider } from "./ai-gateway.server";
 import { sanitizeGeminiPayload, getGeminiApiKey } from "@/services/gemini";
 
@@ -132,12 +132,17 @@ const SaveScanSchema = z.object({
 });
 
 export const saveScan = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([optionalSupabaseAuth])
   .validator((input: unknown) => SaveScanSchema.parse(input))
   .handler(async ({ data, context }) => {
-    const user = context.user;
+    const userId = context.userId || context.user?.id;
+    if (!userId || !context.isAuthenticated) {
+      console.warn("[saveScan] Skipping database scan history save: Request is unauthenticated or token is missing.");
+      return { ok: false, reason: "unauthenticated" };
+    }
+
     const { error } = await context.supabase.from("scans").insert({
-      user_id: user.id,
+      user_id: userId,
       dish_name: data.result.dish_name,
       safety_level: data.result.safety_level,
       calories: data.result.calories,
@@ -153,7 +158,11 @@ export const saveScan = createServerFn({ method: "POST" })
       image_url: data.imageUrl,
     });
 
-    if (error) throw error;
+    if (error) {
+      console.warn("[saveScan] Could not insert scan record into Supabase:", error.message);
+      return { ok: false, reason: error.message };
+    }
+
     return { ok: true };
   });
 

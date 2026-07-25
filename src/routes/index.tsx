@@ -165,6 +165,13 @@ function HomePage() {
 
       if (user) {
         try {
+          const { data: sessionData } = await supabase.auth.getSession();
+          const token = sessionData.session?.access_token;
+          const headers: Record<string, string> = {};
+          if (token) {
+            headers["Authorization"] = `Bearer ${token}`;
+          }
+
           let imageUrl: string | null = null;
           if (fileObj) {
             const path = `${user.id}/${Date.now()}-${fileObj.name}`;
@@ -184,6 +191,7 @@ function HomePage() {
               imageUrl,
               result: data,
             },
+            headers,
           });
           queryClient.invalidateQueries({ queryKey: ["today-summary"] });
         } catch (saveError) {
@@ -226,6 +234,13 @@ function HomePage() {
 
       if (user) {
         try {
+          const { data: sessionData } = await supabase.auth.getSession();
+          const token = sessionData.session?.access_token;
+          const headers: Record<string, string> = {};
+          if (token) {
+            headers["Authorization"] = `Bearer ${token}`;
+          }
+
           let imageUrl: string | null = null;
           if (imageFile) {
             const path = `${user.id}/${Date.now()}-${imageFile.name}`;
@@ -245,6 +260,7 @@ function HomePage() {
               imageUrl,
               result: data,
             },
+            headers,
           });
           queryClient.invalidateQueries({ queryKey: ["today-summary"] });
         } catch (saveError) {

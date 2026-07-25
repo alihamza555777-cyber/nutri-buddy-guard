@@ -32,20 +32,18 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
 
 export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server(
   async ({ next }) => {
-    
-    const SUPABASE_URL = process.env.SUPABASE_URL;
-    const SUPABASE_PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY;
+    const SUPABASE_URL =
+      process.env.VITE_SUPABASE_URL ||
+      process.env.SUPABASE_URL ||
+      'https://uqyxssgiqdimyhubkmfd.supabase.co';
 
-    if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
-      const missing = [
-        ...(!SUPABASE_URL ? ['SUPABASE_URL'] : []),
-        ...(!SUPABASE_PUBLISHABLE_KEY ? ['SUPABASE_PUBLISHABLE_KEY'] : []),
-      ];
-      const message = `Missing Supabase environment variable(s): ${missing.join(', ')}. Connect Supabase in Lovable Cloud.`;
-      console.error(`[Supabase] ${message}`);
-      throw new Error(message);
-    }
-    
+    const SUPABASE_PUBLISHABLE_KEY =
+      process.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+      process.env.VITE_SUPABASE_ANON_KEY ||
+      process.env.SUPABASE_PUBLISHABLE_KEY ||
+      process.env.SUPABASE_ANON_KEY ||
+      'sb_publishable_W7m8pl202ruGN1a6CIbEqg_Qnluj18u';
+
     const request = getRequest();
 
     if (!request?.headers) {
@@ -62,7 +60,7 @@ export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server
       throw new Error('Unauthorized: Only Bearer tokens are supported');
     }
 
-    const token = authHeader.replace('Bearer ', '');
+    const token = authHeader.replace('Bearer ', '').trim();
     if (!token) {
       throw new Error('Unauthorized: No token provided');
     }
@@ -72,11 +70,11 @@ export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server
     }
 
     const supabase = createClient<Database>(
-      SUPABASE_URL!,
-      SUPABASE_PUBLISHABLE_KEY!,
+      SUPABASE_URL,
+      SUPABASE_PUBLISHABLE_KEY,
       {
         global: {
-          fetch: createSupabaseFetch(SUPABASE_PUBLISHABLE_KEY!),
+          fetch: createSupabaseFetch(SUPABASE_PUBLISHABLE_KEY),
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -101,9 +99,108 @@ export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server
     return next({
       context: {
         supabase,
+        user: { id: data.claims.sub },
         userId: data.claims.sub,
         claims: data.claims,
+        isAuthenticated: true,
       },
     });
+  },
+);
+
+export const optionalSupabaseAuth = createMiddleware({ type: 'function' }).server(
+  async ({ next }) => {
+    const SUPABASE_URL =
+      process.env.VITE_SUPABASE_URL ||
+      process.env.SUPABASE_URL ||
+      'https://uqyxssgiqdimyhubkmfd.supabase.co';
+
+    const SUPABASE_PUBLISHABLE_KEY =
+      process.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+      process.env.VITE_SUPABASE_ANON_KEY ||
+      process.env.SUPABASE_PUBLISHABLE_KEY ||
+      process.env.SUPABASE_ANON_KEY ||
+      'sb_publishable_W7m8pl202ruGN1a6CIbEqg_Qnluj18u';
+
+    const request = getRequest();
+    const authHeader = request?.headers?.get('authorization');
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.warn('[Supabase Auth] No authorization header provided for optional auth.');
+      return next({
+        context: {
+          user: null,
+          userId: null,
+          isAuthenticated: false,
+          supabase: createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY),
+        },
+      });
+    }
+
+    const token = authHeader.replace('Bearer ', '').trim();
+    if (!token || token.split('.').length !== 3) {
+      console.warn('[Supabase Auth] Invalid token structure for optional auth.');
+      return next({
+        context: {
+          user: null,
+          userId: null,
+          isAuthenticated: false,
+          supabase: createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY),
+        },
+      });
+    }
+
+    try {
+      const supabase = createClient<Database>(
+        SUPABASE_URL,
+        SUPABASE_PUBLISHABLE_KEY,
+        {
+          global: {
+            fetch: createSupabaseFetch(SUPABASE_PUBLISHABLE_KEY),
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          },
+          auth: {
+            storage: undefined,
+            persistSession: false,
+            autoRefreshToken: false,
+          },
+        }
+      );
+
+      const { data, error } = await supabase.auth.getClaims(token);
+      if (error || !data?.claims?.sub) {
+        console.warn('[Supabase Auth] Token claim verification failed for optional auth:', error?.message);
+        return next({
+          context: {
+            user: null,
+            userId: null,
+            isAuthenticated: false,
+            supabase,
+          },
+        });
+      }
+
+      return next({
+        context: {
+          supabase,
+          user: { id: data.claims.sub },
+          userId: data.claims.sub,
+          claims: data.claims,
+          isAuthenticated: true,
+        },
+      });
+    } catch (err) {
+      console.warn('[Supabase Auth] Exception in optional auth handler:', err);
+      return next({
+        context: {
+          user: null,
+          userId: null,
+          isAuthenticated: false,
+          supabase: createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY),
+        },
+      });
+    }
   },
 );
