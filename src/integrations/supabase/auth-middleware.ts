@@ -45,66 +45,89 @@ export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server
       'sb_publishable_W7m8pl202ruGN1a6CIbEqg_Qnluj18u';
 
     const request = getRequest();
+    const authHeader = request?.headers?.get('authorization');
 
-    if (!request?.headers) {
-      throw new Error('Unauthorized: No request headers available');
-    }
-
-    const authHeader = request.headers.get('authorization');
-
-    if (!authHeader) {
-      throw new Error('Unauthorized: No authorization header provided');
-    }
-
-    if (!authHeader.startsWith('Bearer ')) {
-      throw new Error('Unauthorized: Only Bearer tokens are supported');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.warn('[Supabase Auth] Missing Authorization header, returning guest context.');
+      return next({
+        context: {
+          supabase: createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY),
+          user: null,
+          userId: null,
+          claims: null,
+          isAuthenticated: false,
+        },
+      });
     }
 
     const token = authHeader.replace('Bearer ', '').trim();
-    if (!token) {
-      throw new Error('Unauthorized: No token provided');
+    if (!token || token.split('.').length !== 3) {
+      console.warn('[Supabase Auth] Invalid token format, returning guest context.');
+      return next({
+        context: {
+          supabase: createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY),
+          user: null,
+          userId: null,
+          claims: null,
+          isAuthenticated: false,
+        },
+      });
     }
 
-    if (token.split('.').length !== 3) {
-      throw new Error('Unauthorized: Invalid token');
-    }
-
-    const supabase = createClient<Database>(
-      SUPABASE_URL,
-      SUPABASE_PUBLISHABLE_KEY,
-      {
-        global: {
-          fetch: createSupabaseFetch(SUPABASE_PUBLISHABLE_KEY),
-          headers: {
-            Authorization: `Bearer ${token}`,
+    try {
+      const supabase = createClient<Database>(
+        SUPABASE_URL,
+        SUPABASE_PUBLISHABLE_KEY,
+        {
+          global: {
+            fetch: createSupabaseFetch(SUPABASE_PUBLISHABLE_KEY),
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
           },
-        },
-        auth: {
-          storage: undefined,
-          persistSession: false,
-          autoRefreshToken: false,
-        },
+          auth: {
+            storage: undefined,
+            persistSession: false,
+            autoRefreshToken: false,
+          },
+        }
+      );
+
+      const { data, error } = await supabase.auth.getClaims(token);
+      if (error || !data?.claims?.sub) {
+        console.warn('[Supabase Auth] Claim verification failed, returning guest context:', error?.message);
+        return next({
+          context: {
+            supabase,
+            user: null,
+            userId: null,
+            claims: null,
+            isAuthenticated: false,
+          },
+        });
       }
-    );
 
-    const { data, error } = await supabase.auth.getClaims(token);
-    if (error || !data?.claims) {
-      throw new Error('Unauthorized: Invalid token');
+      return next({
+        context: {
+          supabase,
+          user: { id: data.claims.sub },
+          userId: data.claims.sub,
+          claims: data.claims,
+          isAuthenticated: true,
+        },
+      });
+    } catch (err) {
+      console.warn('[Supabase Auth] Auth verification exception, returning guest context:', err);
+      return next({
+        context: {
+          supabase: createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY),
+          user: null,
+          userId: null,
+          claims: null,
+          isAuthenticated: false,
+        },
+      });
     }
-
-    if (!data.claims.sub) {
-      throw new Error('Unauthorized: No user ID found in token');
-    }
-
-    return next({
-      context: {
-        supabase,
-        user: { id: data.claims.sub },
-        userId: data.claims.sub,
-        claims: data.claims,
-        isAuthenticated: true,
-      },
-    });
   },
 );
 
