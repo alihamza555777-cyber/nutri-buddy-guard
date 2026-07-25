@@ -132,17 +132,12 @@ const SaveScanSchema = z.object({
 });
 
 export const saveScan = createServerFn({ method: "POST" })
-  .middleware([optionalSupabaseAuth])
+  .middleware([requireSupabaseAuth])
   .validator((input: unknown) => SaveScanSchema.parse(input))
   .handler(async ({ data, context }) => {
-    const userId = context.userId || context.user?.id;
-    if (!userId || !context.isAuthenticated) {
-      console.warn("[saveScan] Skipping database scan history save: Request is unauthenticated or token is missing.");
-      return { ok: false, reason: "unauthenticated" };
-    }
-
+    const user = context.user;
     const { error } = await context.supabase.from("scans").insert({
-      user_id: userId,
+      user_id: user.id,
       dish_name: data.result.dish_name,
       safety_level: data.result.safety_level,
       calories: data.result.calories,
@@ -158,11 +153,7 @@ export const saveScan = createServerFn({ method: "POST" })
       image_url: data.imageUrl,
     });
 
-    if (error) {
-      console.warn("[saveScan] Could not insert scan record into Supabase:", error.message);
-      return { ok: false, reason: error.message };
-    }
-
+    if (error) throw error;
     return { ok: true };
   });
 

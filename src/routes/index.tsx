@@ -196,7 +196,10 @@ function HomePage() {
           queryClient.invalidateQueries({ queryKey: ["today-summary"] });
         } catch (saveError) {
           console.warn("Non-fatal: Could not save scan to history database:", saveError);
+          toast.info("Sign in or create an account to save your scan history!");
         }
+      } else {
+        toast.info("Scan complete! Sign in or create an account to save your history.");
       }
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : "Analysis failed. Please try again.";
@@ -265,7 +268,10 @@ function HomePage() {
           queryClient.invalidateQueries({ queryKey: ["today-summary"] });
         } catch (saveError) {
           console.warn("Non-fatal: Could not save scan to history database:", saveError);
+          toast.info("Sign in or create an account to save your scan history!");
         }
+      } else {
+        toast.info("Scan complete! Sign in or create an account to save your history.");
       }
     } catch (err: any) {
       const errMsg = err instanceof Error ? err.message : "Analysis failed. Please try again.";
