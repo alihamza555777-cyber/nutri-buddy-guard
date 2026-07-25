@@ -4,7 +4,7 @@
  */
 
 export const GROQ_TEXT_MODEL = "llama-3.3-70b-versatile";
-export const GROQ_VISION_MODEL = "llama-3.2-11b-vision-instruct";
+export const GROQ_VISION_MODEL = "qwen/qwen3.6-27b";
 export const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 
 export interface GroqFoodAnalysisResult {
@@ -127,21 +127,79 @@ export function cleanJsonResponseText(rawText: string): string {
 }
 
 /**
+ * Helper to extract clean raw base64 string from input (stripping data:image prefix if present)
+ */
+export function extractCleanBase64(input: string): string {
+  if (!input) return "";
+  let clean = input.trim();
+  if (clean.includes("base64,")) {
+    clean = clean.split("base64,")[1] || clean;
+  }
+  return clean.trim();
+}
+
+/**
  * Analyzes food item using Groq's OpenAI-compatible chat completions endpoint.
- * Uses llama-3.3-70b-versatile for text and llama-3.2-11b-vision-instruct for images.
+ * Uses qwen/qwen3.6-27b for vision (camera image scans) and llama-3.3-70b-versatile for text-only dish searches.
  */
 export async function analyzeFoodWithGroq(
   options: AnalyzeFoodOptions
 ): Promise<GroqFoodAnalysisResult> {
   const apiKey = getGroqApiKey();
 
-  const isImage = options.inputType === "image";
+  const rawInput = (options.dishInput || "").trim();
+  const isImage =
+    options.inputType === "image" ||
+    rawInput.startsWith("data:image/") ||
+    rawInput.startsWith("http://") ||
+    rawInput.startsWith("https://") ||
+    (rawInput.length > 100 && !rawInput.includes(" "));
+
   const model = isImage ? GROQ_VISION_MODEL : GROQ_TEXT_MODEL;
 
   const systemPrompt =
     "You are a nutritional AI. Respond strictly in valid JSON format containing safety_status ('SAFE'|'CAUTION'|'AVOID'), summary, calories, protein_g, carbs_g, fats_g, detected_allergens.";
 
-  const userInstruction = `
+  let messages: any[];
+
+  if (isImage) {
+    const cleanBase64 = extractCleanBase64(rawInput);
+    const imageUrl =
+      rawInput.startsWith("http://") || rawInput.startsWith("https://")
+        ? rawInput
+        : `data:image/jpeg;base64,${cleanBase64}`;
+
+    const textPrompt =
+      options.restrictions?.length || options.customNotes
+        ? `User Dietary Profile:
+- Dietary Restrictions & Allergies: ${(options.restrictions || []).join(", ") || "None specified"}
+- Custom Notes / Medical Conditions: ${options.customNotes || "None"}
+${options.targetCalories ? `- Target Daily Calories: ${options.targetCalories}` : ""}
+${options.targetProtein ? `- Target Daily Protein: ${options.targetProtein}g` : ""}
+
+Analyze this dish for dietary restrictions, allergies, safety status ('SAFE' | 'CAUTION' | 'AVOID'), macros (calories, protein, carbs, fats), and detected allergens. Return strictly valid JSON.`
+        : "Analyze this dish for dietary restrictions, allergies, safety status ('SAFE' | 'CAUTION' | 'AVOID'), macros (calories, protein, carbs, fats), and detected allergens. Return strictly valid JSON.";
+
+    messages = [
+      { role: "system", content: systemPrompt },
+      {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: textPrompt,
+          },
+          {
+            type: "image_url",
+            image_url: {
+              url: imageUrl,
+            },
+          },
+        ],
+      },
+    ];
+  } else {
+    const userInstruction = `
 User Dietary Profile:
 - Dietary Restrictions & Allergies: ${(options.restrictions || []).join(", ") || "None specified"}
 - Custom Notes / Medical Conditions: ${options.customNotes || "None"}
@@ -149,8 +207,8 @@ ${options.targetCalories ? `- Target Daily Calories: ${options.targetCalories}` 
 ${options.targetProtein ? `- Target Daily Protein: ${options.targetProtein}g` : ""}
 
 Food Input:
-- Input Type: ${isImage ? "Camera / Photo Upload" : "Dish Name Typed"}
-- Dish / Input Details: ${isImage ? (options.dishInput.startsWith("data:image") ? "Attached image scan" : options.dishInput) : options.dishInput}
+- Input Type: Dish Name Typed
+- Dish / Input Details: ${rawInput}
 
 Return a valid JSON object matching this schema:
 {
@@ -166,36 +224,15 @@ Return a valid JSON object matching this schema:
 }
 `;
 
-  let userContent: any;
-
-  if (isImage) {
-    let imageUrl = (options.dishInput || "").trim();
-    if (!imageUrl.startsWith("data:image/") && !imageUrl.startsWith("http")) {
-      imageUrl = `data:image/jpeg;base64,${imageUrl}`;
-    }
-
-    userContent = [
-      {
-        type: "text",
-        text: userInstruction.trim(),
-      },
-      {
-        type: "image_url",
-        image_url: {
-          url: imageUrl,
-        },
-      },
+    messages = [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userInstruction.trim() },
     ];
-  } else {
-    userContent = userInstruction.trim();
   }
 
   const payload = {
     model,
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userContent },
-    ],
+    messages,
     temperature: 0.2,
     response_format: { type: "json_object" },
   };
@@ -338,10 +375,12 @@ export async function analyzeBatchMenuWithGroq(options: {
 }): Promise<BatchMenuResult> {
   const apiKey = getGroqApiKey();
 
-  let imageUrl = options.imageBase64.trim();
-  if (!imageUrl.startsWith("data:image/") && !imageUrl.startsWith("http")) {
-    imageUrl = `data:image/jpeg;base64,${imageUrl}`;
-  }
+  const rawImage = options.imageBase64.trim();
+  const cleanBase64 = extractCleanBase64(rawImage);
+  const imageUrl =
+    rawImage.startsWith("http://") || rawImage.startsWith("https://")
+      ? rawImage
+      : `data:image/jpeg;base64,${cleanBase64}`;
 
   const systemPrompt = "You are a nutritional AI. Respond strictly in valid JSON format.";
   const promptText = `

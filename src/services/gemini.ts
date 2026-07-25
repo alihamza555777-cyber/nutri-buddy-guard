@@ -10,6 +10,7 @@ import {
   GROQ_VISION_MODEL,
   analyzeFoodWithGroq,
   cleanJsonResponseText,
+  extractCleanBase64,
   type GroqFoodAnalysisResult,
   type AnalyzeFoodOptions,
 } from "./groq";
@@ -46,12 +47,18 @@ export function sanitizeGeminiPayload(
   const isValidImage = isImage && cleanInput.length > 0;
 
   if (isValidImage) {
-    let imageUrl = cleanInput;
-    if (!imageUrl.startsWith("data:image/") && !imageUrl.startsWith("http")) {
-      imageUrl = `data:image/jpeg;base64,${imageUrl}`;
-    }
+    const cleanBase64 = extractCleanBase64(cleanInput);
+    const imageUrl =
+      cleanInput.startsWith("http://") || cleanInput.startsWith("https://")
+        ? cleanInput
+        : `data:image/jpeg;base64,${cleanBase64}`;
     return [
-      { type: "text", text: promptText },
+      {
+        type: "text",
+        text:
+          promptText ||
+          "Analyze this dish for dietary restrictions, allergies, safety status ('SAFE' | 'CAUTION' | 'AVOID'), macros (calories, protein, carbs, fats), and detected allergens. Return strictly valid JSON.",
+      },
       { type: "image_url", image_url: { url: imageUrl } },
     ];
   }
@@ -100,6 +107,7 @@ export function getGeminiModelName(): string {
 export {
   analyzeFoodWithGroq,
   cleanJsonResponseText,
+  extractCleanBase64,
   getGroqApiKey,
   isGroqConfigured,
   GROQ_TEXT_MODEL,
