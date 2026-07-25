@@ -69,7 +69,16 @@ export function createLovableAiGatewayProvider(
     fetch: runIdFetch.fetch,
   });
 
-  return Object.assign(provider, {
+  // When going direct to Google, strip the "google/" routing prefix
+  // that Lovable's gateway uses. Google expects just "gemini-2.0-flash".
+  const wrappedProvider = isGoogleKey
+    ? Object.assign(
+        (modelId: string) => provider(modelId.replace(/^google\//, "")),
+        provider,
+      )
+    : provider;
+
+  return Object.assign(wrappedProvider, {
     getRunId: runIdFetch.getRunId,
     waitForRunId: runIdFetch.waitForRunId,
   });
