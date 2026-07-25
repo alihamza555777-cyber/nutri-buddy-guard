@@ -71,11 +71,11 @@ export function WebcamScannerModal({
     } catch (err: any) {
       console.error("Camera access error:", err);
       if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
-        setCameraError("Camera permission denied. Please allow camera access in your browser settings.");
+        setCameraError("Camera access denied. Please enable camera permissions or upload an image file.");
       } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
         setCameraError("No camera device found on your device.");
       } else {
-        setCameraError(err.message || "Failed to access camera. Please try file upload instead.");
+        setCameraError(err.message || "Camera access denied. Please enable camera permissions or upload an image file.");
       }
     } finally {
       setIsInitializing(false);
@@ -128,28 +128,18 @@ export function WebcamScannerModal({
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[92vh] w-full max-w-xl overflow-hidden rounded-[2rem] border border-slate-200 bg-white p-5 text-slate-900 shadow-2xl sm:p-6 dark:border-slate-800 dark:bg-slate-900 dark:text-white">
         <DialogHeader className="text-left pr-8">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-[#008000]/20 bg-[#008000]/10 text-[#008000]">
-                <Camera className="h-5 w-5 text-[#008000]" />
-              </div>
-              <div>
-                <DialogTitle className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
-                  Live Food Scanner Camera
-                </DialogTitle>
-                <DialogDescription className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                  Align dish or menu within frame and snap to scan instantly
-                </DialogDescription>
-              </div>
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-[#008000]/20 bg-[#008000]/10 text-[#008000]">
+              <Camera className="h-5 w-5 text-[#008000]" />
             </div>
-
-            <button
-              onClick={onClose}
-              className="rounded-full p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
-              aria-label="Close"
-            >
-              <X className="h-5 w-5" />
-            </button>
+            <div>
+              <DialogTitle className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
+                Live Food Scanner Camera
+              </DialogTitle>
+              <DialogDescription className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                Align dish or menu within frame and snap to scan instantly
+              </DialogDescription>
+            </div>
           </div>
         </DialogHeader>
 

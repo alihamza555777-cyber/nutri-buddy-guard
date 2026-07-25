@@ -44,20 +44,28 @@ export function createLovableAiGatewayRunIdFetch(initialRunId?: string) {
 }
 
 export function createLovableAiGatewayProvider(
-  lovableApiKey: string,
+  apiKey: string,
   initialRunId?: string,
   options?: { structuredOutputs?: boolean },
 ) {
   const runIdFetch = createLovableAiGatewayRunIdFetch(initialRunId);
+  const isGoogleKey = apiKey.startsWith("AIzaSy");
 
   const provider = createOpenAICompatible({
-    name: "lovable",
-    baseURL: "https://ai.gateway.lovable.dev/v1",
+    name: isGoogleKey ? "google-gemini" : "lovable",
+    baseURL: isGoogleKey
+      ? "https://generativelanguage.googleapis.com/v1beta/openai"
+      : "https://ai.gateway.lovable.dev/v1",
+    apiKey: isGoogleKey ? apiKey : undefined,
     supportsStructuredOutputs: options?.structuredOutputs ?? false,
-    headers: {
-      "Lovable-API-Key": lovableApiKey,
-      "X-Lovable-AIG-SDK": "vercel-ai-sdk",
-    },
+    headers: isGoogleKey
+      ? {
+          "x-goog-api-key": apiKey,
+        }
+      : {
+          "Lovable-API-Key": apiKey,
+          "X-Lovable-AIG-SDK": "vercel-ai-sdk",
+        },
     fetch: runIdFetch.fetch,
   });
 

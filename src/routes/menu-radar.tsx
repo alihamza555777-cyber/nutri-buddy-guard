@@ -21,6 +21,7 @@ import {
 import { BatchMenuResults } from "@/components/BatchMenuResults";
 import { SafeOrderModal } from "@/components/SafeOrderModal";
 import { CameraViewfinderModal } from "@/components/CameraViewfinderModal";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/menu-radar")({
   head: () => ({
@@ -136,11 +137,29 @@ function MenuRadarPage() {
         },
       });
       setBatchResults(batchRes.items);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Batch menu analysis failed. Please try again.");
+    } catch (err: any) {
+      const errMsg = err instanceof Error ? err.message : "Batch menu analysis failed. Please try again.";
+      setError(errMsg);
+      toast.error(errMsg);
     } finally {
       setLoading(false);
     }
+  }
+
+  function validateImageFile(file: File): boolean {
+    if (!file.type.startsWith("image/")) {
+      const msg = "Invalid file type. Please upload a JPEG, PNG, or WebP image.";
+      setError(msg);
+      toast.error(msg);
+      return false;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      const msg = "Image size is too large. Please select an image under 10MB.";
+      setError(msg);
+      toast.error(msg);
+      return false;
+    }
+    return true;
   }
 
   function handleWebcamCapture(base64Image: string) {
@@ -191,6 +210,7 @@ function MenuRadarPage() {
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!validateImageFile(file)) return;
     const reader = new FileReader();
     reader.onloadend = () => setImageBase64(reader.result as string);
     reader.readAsDataURL(file);
@@ -199,7 +219,9 @@ function MenuRadarPage() {
   async function handleBatchScan(e: React.FormEvent) {
     e.preventDefault();
     if (!imageBase64) {
-      setError("Please upload a photo of a menu page first.");
+      const msg = "Please upload a photo of a menu page first.";
+      setError(msg);
+      toast.error(msg);
       return;
     }
 
@@ -217,7 +239,9 @@ function MenuRadarPage() {
       });
       setBatchResults(batchRes.items);
     } catch (err: any) {
-      setError(err?.message || "Batch menu analysis failed. Please try again.");
+      const errMsg = err?.message || "Batch menu analysis failed. Please try again.";
+      setError(errMsg);
+      toast.error(errMsg);
     } finally {
       setLoading(false);
     }

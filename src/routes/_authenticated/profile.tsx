@@ -1,17 +1,19 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { getProfile, updateProfile } from "@/lib/profile.functions";
-import { Bell, Loader2, Plus, Save, Tag, User, X } from "lucide-react";
+import { Bell, Loader2, Plus, Save, Tag, User, X, Scale, HeartPulse, CheckCircle2, AlertCircle } from "lucide-react";
+import { BmiHealthCard } from "@/components/BmiHealthCard";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/profile")({
   head: () => ({
     meta: [
       { title: "Profile Settings — NutriGuard" },
-      { name: "description", content: "Manage your allergies, notification preferences, and saved brands in NutriGuard." },
+      { name: "description", content: "Manage your health profile, BMI metrics, allergies, and notification preferences in NutriGuard." },
       { property: "og:title", content: "Profile Settings — NutriGuard" },
-      { property: "og:description", content: "Manage your allergies, notification preferences, and saved brands in NutriGuard." },
+      { property: "og:description", content: "Manage your health profile, BMI metrics, allergies, and notification preferences in NutriGuard." },
     ],
   }),
   component: ProfilePage,
@@ -41,6 +43,10 @@ function ProfilePage() {
     staleTime: 5 * 60 * 1000,
   });
 
+  const [fullName, setFullName] = useState("");
+  const [age, setAge] = useState<string>("");
+  const [weightKg, setWeightKg] = useState<string>("");
+  const [heightCm, setHeightCm] = useState<string>("170");
   const [restrictions, setRestrictions] = useState<string[]>([]);
   const [targetCalories, setTargetCalories] = useState<string>("");
   const [targetProtein, setTargetProtein] = useState<string>("");
@@ -52,16 +58,25 @@ function ProfilePage() {
   const [savedBrands, setSavedBrands] = useState<string[]>([]);
   const [brandInput, setBrandInput] = useState("");
   const [saved, setSaved] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   useEffect(() => {
     if (profile) {
       const p = profile as typeof profile & {
+        full_name?: string | null;
+        age?: number | null;
+        weight_kg?: number | null;
+        height_cm?: number | null;
         notify_email?: boolean;
         notify_push?: boolean;
         notify_scan_alerts?: boolean;
         notify_weekly_summary?: boolean;
         saved_brands?: string[] | null;
       };
+      setFullName(p.full_name ?? "");
+      setAge(p.age?.toString() ?? "");
+      setWeightKg(p.weight_kg?.toString() ?? "");
+      setHeightCm(p.height_cm?.toString() ?? "170");
       setRestrictions(p.dietary_flags ?? []);
       setTargetCalories(p.target_calories?.toString() ?? "");
       setTargetProtein(p.target_protein?.toString() ?? "");
@@ -74,10 +89,60 @@ function ProfilePage() {
     }
   }, [profile]);
 
+  const parsedWeight = useMemo(() => (weightKg ? parseFloat(weightKg) : null), [weightKg]);
+  const parsedHeight = useMemo(() => (heightCm ? parseFloat(heightCm) : 170), [heightCm]);
+  const parsedAge = useMemo(() => (age ? parseInt(age, 10) : null), [age]);
+
+  // Dirty State Detection
+  const isDirty = useMemo(() => {
+    if (!profile) return false;
+    const p = profile as any;
+    const initialFullName = p.full_name ?? "";
+    const initialAge = p.age?.toString() ?? "";
+    const initialWeightKg = p.weight_kg?.toString() ?? "";
+    const initialHeightCm = p.height_cm?.toString() ?? "170";
+    const initialRestrictions = p.dietary_flags ?? [];
+    const initialCalories = p.target_calories?.toString() ?? "";
+    const initialProtein = p.target_protein?.toString() ?? "";
+    const initialNotes = p.custom_notes ?? "";
+    const initialNotifyEmail = p.notify_email ?? true;
+    const initialNotifyPush = p.notify_push ?? false;
+    const initialNotifyScanAlerts = p.notify_scan_alerts ?? true;
+    const initialNotifyWeeklySummary = p.notify_weekly_summary ?? true;
+    const initialSavedBrands = p.saved_brands ?? [];
+
+    if (fullName !== initialFullName) return true;
+    if (age !== initialAge) return true;
+    if (weightKg !== initialWeightKg) return true;
+    if (heightCm !== initialHeightCm) return true;
+    if (customNotes !== initialNotes) return true;
+    if (targetCalories !== initialCalories) return true;
+    if (targetProtein !== initialProtein) return true;
+    if (notifyEmail !== initialNotifyEmail) return true;
+    if (notifyPush !== initialNotifyPush) return true;
+    if (notifyScanAlerts !== initialNotifyScanAlerts) return true;
+    if (notifyWeeklySummary !== initialNotifyWeeklySummary) return true;
+
+    if (restrictions.length !== initialRestrictions.length ||
+        restrictions.some((r, i) => r !== initialRestrictions[i])) return true;
+    if (savedBrands.length !== initialSavedBrands.length ||
+        savedBrands.some((b, i) => b !== initialSavedBrands[i])) return true;
+
+    return false;
+  }, [
+    profile, fullName, age, weightKg, heightCm, restrictions, customNotes,
+    targetCalories, targetProtein, notifyEmail, notifyPush, notifyScanAlerts,
+    notifyWeeklySummary, savedBrands
+  ]);
+
   const mutation = useMutation({
     mutationFn: () =>
       updateProfileFn({
         data: {
+          fullName: fullName || null,
+          age: parsedAge,
+          weightKg: parsedWeight,
+          heightCm: parsedHeight,
           dietaryFlags: restrictions,
           targetCalories: targetCalories ? parseInt(targetCalories, 10) : null,
           targetProtein: targetProtein ? parseInt(targetProtein, 10) : null,
@@ -92,9 +157,72 @@ function ProfilePage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["profile"] });
       setSaved(true);
+      toast.success("Profile updated successfully!");
       setTimeout(() => setSaved(false), 3000);
     },
+    onError: (err: any) => {
+      console.error("Profile update error:", err);
+      const errMsg = err?.message || "Failed to update profile due to network connection. Please try again.";
+      toast.error(errMsg);
+    },
   });
+
+  function handleSave() {
+    setValidationError(null);
+
+    // 1. Dirty check
+    if (!isDirty) {
+      toast.info("No changes detected. Your profile is already up to date!");
+      return;
+    }
+
+    // 2. Input Validations
+    const trimmedName = fullName.trim();
+    const NAME_REGEX = /^[a-zA-Z\s'\-]+$/;
+    if (trimmedName && (trimmedName.length > 50 || !NAME_REGEX.test(trimmedName))) {
+      const err = "Full Name must be 50 characters or fewer and contain valid name characters.";
+      setValidationError(err);
+      toast.error(err);
+      return;
+    }
+
+    if (parsedAge !== null && (isNaN(parsedAge) || parsedAge < 1 || parsedAge > 120)) {
+      const err = "Please enter a valid age between 1 and 120 years.";
+      setValidationError(err);
+      toast.error(err);
+      return;
+    }
+
+    if (parsedWeight !== null && (isNaN(parsedWeight) || parsedWeight <= 0 || parsedWeight > 500)) {
+      const err = "Please enter a valid weight in kg (e.g., 70)";
+      setValidationError(err);
+      toast.error(err);
+      return;
+    }
+
+    if (parsedHeight !== null && (isNaN(parsedHeight) || parsedHeight <= 0 || parsedHeight > 300)) {
+      const err = "Please enter a valid height in cm (e.g., 170)";
+      setValidationError(err);
+      toast.error(err);
+      return;
+    }
+
+    if (targetCalories && (isNaN(parseInt(targetCalories, 10)) || parseInt(targetCalories, 10) < 0)) {
+      const err = "Daily calorie target must be a positive number.";
+      setValidationError(err);
+      toast.error(err);
+      return;
+    }
+
+    if (targetProtein && (isNaN(parseInt(targetProtein, 10)) || parseInt(targetProtein, 10) < 0)) {
+      const err = "Daily protein target must be a positive number.";
+      setValidationError(err);
+      toast.error(err);
+      return;
+    }
+
+    mutation.mutate();
+  }
 
   function toggleRestriction(name: string) {
     setRestrictions((prev) =>
@@ -132,14 +260,105 @@ function ProfilePage() {
           <User className="h-5 w-5" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Profile settings</h1>
+          <h1 className="text-2xl font-bold text-foreground">
+            {fullName ? `${fullName}'s Profile` : "Profile settings"}
+          </h1>
           <p className="text-sm text-muted-foreground">
-            Manage your allergies, notifications, and saved brands.
+            Manage your personal metrics, BMI health status, allergies, and notifications.
           </p>
         </div>
       </div>
 
       <div className="space-y-6">
+        {/* Interactive BMI Visual Status Indicator */}
+        <BmiHealthCard
+          weightKg={parsedWeight}
+          heightCm={parsedHeight}
+          age={parsedAge}
+        />
+
+        {/* Personal & Health Details */}
+        <section className="rounded-3xl border border-border bg-card p-6 shadow-sm sm:p-8">
+          <div className="mb-4 flex items-center gap-2">
+            <HeartPulse className="h-5 w-5 text-primary" />
+            <h2 className="text-lg font-semibold text-card-foreground">Personal Details</h2>
+          </div>
+          <div className="grid gap-6 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <div className="flex justify-between items-center mb-2">
+                <label htmlFor="fullName" className="text-sm font-medium text-card-foreground">
+                  Full Name
+                </label>
+                <span className="text-xs text-muted-foreground font-mono">{fullName.length}/50</span>
+              </div>
+              <input
+                id="fullName"
+                type="text"
+                maxLength={50}
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="e.g., Alex Johnson"
+                className="w-full rounded-2xl border border-input bg-background px-4 py-3 text-foreground outline-none ring-ring focus:ring-2"
+              />
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                Max 50 characters (letters, spaces, hyphens, and apostrophes allowed).
+              </p>
+            </div>
+
+            <div>
+              <label htmlFor="age" className="mb-2 block text-sm font-medium text-card-foreground">
+                Age (years)
+              </label>
+              <input
+                id="age"
+                type="number"
+                min={1}
+                max={120}
+                value={age}
+                onChange={(e) => setAge(e.target.value)}
+                placeholder="e.g., 28"
+                className="w-full rounded-2xl border border-input bg-background px-4 py-3 text-foreground outline-none ring-ring focus:ring-2"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="weight" className="mb-2 block text-sm font-medium text-card-foreground">
+                Weight (kg)
+              </label>
+              <input
+                id="weight"
+                type="number"
+                step="0.1"
+                min={1}
+                max={500}
+                value={weightKg}
+                onChange={(e) => setWeightKg(e.target.value)}
+                placeholder="e.g., 70.5"
+                className="w-full rounded-2xl border border-input bg-background px-4 py-3 text-foreground outline-none ring-ring focus:ring-2"
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <label htmlFor="height" className="mb-2 block text-sm font-medium text-card-foreground">
+                Height (cm)
+              </label>
+              <input
+                id="height"
+                type="number"
+                step="0.1"
+                min={1}
+                max={300}
+                value={heightCm}
+                onChange={(e) => setHeightCm(e.target.value)}
+                placeholder="e.g., 170"
+                className="w-full rounded-2xl border border-input bg-background px-4 py-3 text-foreground outline-none ring-ring focus:ring-2"
+              />
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                Defaulted to 170 cm if unspecified — required for accurate BMI calculation.
+              </p>
+            </div>
+          </div>
+        </section>
         {/* Allergies & dietary restrictions */}
         <section className="rounded-3xl border border-border bg-card p-6 shadow-sm sm:p-8">
           <h2 className="text-lg font-semibold text-card-foreground">Allergies & dietary restrictions</h2>
@@ -299,23 +518,30 @@ function ProfilePage() {
           )}
         </section>
 
-        <div className="flex items-center gap-4">
-          <button
-            type="button"
-            onClick={() => mutation.mutate()}
-            disabled={mutation.isPending}
-            className="inline-flex items-center justify-center rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-70"
-          >
-            {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            <Save className="mr-2 h-4 w-4" />
-            Save settings
-          </button>
-          {saved && <span className="text-sm font-medium text-success">Settings saved!</span>}
-          {mutation.error && (
-            <span className="text-sm font-medium text-danger">
-              {mutation.error instanceof Error ? mutation.error.message : "Failed to save"}
-            </span>
+        <div className="flex flex-col gap-2">
+          {validationError && (
+            <div className="flex items-center gap-2 rounded-2xl bg-danger/10 border border-danger/20 p-3 text-sm text-danger font-medium">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span>{validationError}</span>
+            </div>
           )}
+          <div className="flex items-center gap-4">
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={mutation.isPending}
+              className="inline-flex items-center justify-center rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-70"
+            >
+              {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              <Save className="mr-2 h-4 w-4" />
+              Save settings
+            </button>
+            {saved && (
+              <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+                <CheckCircle2 className="h-4 w-4" /> Profile updated successfully!
+              </span>
+            )}
+          </div>
         </div>
       </div>
     </div>

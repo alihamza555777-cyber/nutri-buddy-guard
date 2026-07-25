@@ -3,6 +3,10 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const ProfileUpdateSchema = z.object({
+  fullName: z.string().trim().max(50).nullable().optional(),
+  age: z.number().int().min(1).max(120).nullable().optional(),
+  weightKg: z.number().positive().max(500).nullable().optional(),
+  heightCm: z.number().positive().max(300).nullable().optional(),
   dietaryFlags: z.array(z.string()).default([]),
   targetCalories: z.number().int().nonnegative().nullable().optional(),
   targetProtein: z.number().int().nonnegative().nullable().optional(),
@@ -44,6 +48,10 @@ export const updateProfile = createServerFn({ method: "POST" })
   .validator((input: unknown) => ProfileUpdateSchema.parse(input))
   .handler(async ({ data, context }) => {
     const update = {
+      ...(data.fullName !== undefined && { full_name: data.fullName }),
+      ...(data.age !== undefined && { age: data.age }),
+      ...(data.weightKg !== undefined && { weight_kg: data.weightKg }),
+      ...(data.heightCm !== undefined && { height_cm: data.heightCm }),
       dietary_flags: data.dietaryFlags,
       target_calories: data.targetCalories ?? null,
       target_protein: data.targetProtein ?? null,

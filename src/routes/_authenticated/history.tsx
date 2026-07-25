@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { getScanHistory } from "@/lib/history.functions";
-import { Loader2, AlertTriangle, CheckCircle2, XCircle, History } from "lucide-react";
+import { Loader2, AlertTriangle, CheckCircle2, XCircle, History, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 
 export const Route = createFileRoute("/_authenticated/history")({
@@ -19,7 +19,7 @@ export const Route = createFileRoute("/_authenticated/history")({
 
 function HistoryPage() {
   const getHistoryFn = useServerFn(getScanHistory);
-  const { data: scans, isLoading } = useQuery({
+  const { data: scans, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["scan-history"],
     queryFn: () => getHistoryFn(),
     staleTime: 60 * 1000,
@@ -40,6 +40,24 @@ function HistoryPage() {
       {isLoading ? (
         <div className="flex min-h-[200px] items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      ) : isError ? (
+        <div className="rounded-3xl border border-danger/20 bg-danger/5 p-8 text-center sm:p-12">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-danger/10 text-danger">
+            <AlertTriangle className="h-6 w-6" />
+          </div>
+          <h3 className="mt-4 text-lg font-semibold text-foreground">Failed to load scan history</h3>
+          <p className="mt-1.5 text-sm text-muted-foreground max-w-md mx-auto">
+            {error instanceof Error ? error.message : "A database or connection issue occurred while fetching your history."}
+          </p>
+          <button
+            type="button"
+            onClick={() => refetch()}
+            className="mt-5 inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Try again
+          </button>
         </div>
       ) : !scans?.length ? (
         <div className="rounded-3xl border border-border bg-card p-12 text-center">

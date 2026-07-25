@@ -3,6 +3,7 @@ import { z } from "zod";
 import { generateText, Output, NoObjectGeneratedError } from "ai";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { createLovableAiGatewayProvider } from "./ai-gateway.server";
+import { sanitizeGeminiPayload } from "@/services/gemini";
 
 const AnalyzeInputSchema = z.object({
   inputType: z.enum(["text", "image"]),
@@ -33,45 +34,54 @@ export type ScanResult = z.infer<typeof ScanResultSchema>;
 export const analyzeFood = createServerFn({ method: "POST" })
   .validator((input: unknown) => AnalyzeInputSchema.parse(input))
   .handler(async ({ data }) => {
-    const lovableApiKey = process.env.LOVABLE_API_KEY;
-    if (!lovableApiKey) {
-      throw new Error("Missing LOVABLE_API_KEY");
+    const apiKey = process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || process.env.LOVABLE_API_KEY;
+    if (!apiKey) {
+      throw new Error("Gemini API Key missing. Please check VITE_GEMINI_API_KEY in your settings.");
     }
 
-    const gateway = createLovableAiGatewayProvider(lovableApiKey);
-    const model = gateway("google/gemini-3.6-flash");
+    const gateway = createLovableAiGatewayProvider(apiKey);
+    const model = gateway("google/gemini-2.0-flash");
 
     const isImage = data.inputType === "image";
 
-    const prompt = `You are NutriGuard, a friendly AI nutrition and allergen inspector. A user wants to know if a dish is safe for them to eat.
+    console.log("Gemini Input Payload:", {
+      dishName: data.dishInput,
+      dietaryRestrictions: data.restrictions,
+      customNotes: data.customNotes,
+      imageBase64: isImage,
+    });
 
-User dietary restrictions: ${data.restrictions.join(", ") || "None specified"}
-User custom notes: ${data.customNotes || "None"}
-Daily targets (if any): ${data.targetCalories ?? "not set"} calories, ${data.targetProtein ?? "not set"}g protein
+    const prompt = `You are NutriGuard AI, an expert food safety and nutrition parser.
+Analyze the user's input food items against their specified allergies, restrictions, and health conditions.
 
-Analyze the ${isImage ? "menu/food photo" : "dish name"} provided and return a JSON object with these exact fields:
-- dish_name: a clear, human-readable dish name
-- safety_level: one of SAFE, CAUTION, or AVOID based on the user's restrictions
-- calories: estimated calories as an integer, or null if unknown
-- protein_g, carbs_g, fats_g, fiber_g, sugar_g, sodium_mg: estimated numeric values, or null if unknown
-- flagged_ingredients: array of ingredients that triggered the restriction check (can be empty)
-- explanation: 2-3 sentences explaining the safety/nutrition assessment in a friendly, helpful tone
-- waiter_question: one concrete question the user can ask a server to stay safe or customize the dish
+User Dietary Profile:
+- Dietary Restrictions & Allergies: ${data.restrictions.join(", ") || "None specified"}
+- Custom Notes / Medical Conditions: ${data.customNotes || "None"}
+- Daily targets (if any): ${data.targetCalories ?? "not set"} calories, ${data.targetProtein ?? "not set"}g protein
 
-Be cautious but not alarmist. If an ingredient is commonly cross-contaminated with an allergen, flag it and explain.`;
+Food Item Input:
+- Dish Name: ${isImage ? "Dish in image" : data.dishInput}
+- Image Provided: ${isImage ? "Yes" : "No"}
 
-    const content = isImage
-      ? [
-          { type: "text" as const, text: prompt },
-          {
-            type: "image" as const,
-            image: data.dishInput, // base64 data URL
-          },
-        ]
-      : [{ type: "text" as const, text: `${prompt}\n\nDish name: ${data.dishInput}` }];
+CRITICAL INSTRUCTIONS:
+1. Respond ONLY with valid, raw JSON (no markdown code block formatting or JSON wrappers).
+2. JSON structure MUST match:
+{
+  "dish_name": "string",
+  "safety_status": "SAFE" | "CAUTION" | "AVOID",
+  "detected_allergens": ["string"],
+  "summary": "string explaining safety status concisely based on user profile",
+  "waiter_question": "string concrete question for server",
+  "calories": number or null,
+  "protein_g": number or null,
+  "carbs_g": number or null,
+  "fats_g": number or null
+}`;
+
+    const content = sanitizeGeminiPayload(data.dishInput, isImage, prompt) as any;
 
     try {
-      const { output } = await generateText({
+      const { text, output } = await generateText({
         model,
         messages: [{ role: "user", content }],
         output: Output.object({
@@ -79,13 +89,37 @@ Be cautious but not alarmist. If an ingredient is commonly cross-contaminated wi
         }),
       });
 
+      console.log("Raw Gemini Response:", text || JSON.stringify(output));
       return output as ScanResult;
-    } catch (error) {
+    } catch (error: any) {
+      console.error("Gemini API Error Detail:", error);
+      const rawText = error?.text || error?.rawResponse || null;
+      if (rawText) {
+        console.log("Raw Gemini Response (Error Text):", rawText);
+        const fallback = parseScanResultFallback(rawText);
+        if (fallback) return fallback;
+      }
+
       if (NoObjectGeneratedError.isInstance(error)) {
         const fallback = parseScanResultFallback(error.text);
         if (fallback) return fallback;
+        throw new Error("Could not process food analysis. Please check input text or try again.");
       }
-      throw error;
+
+      const errString = String(error?.message || error);
+      if (errString.includes("429") || errString.includes("503") || errString.includes("rate limit") || errString.includes("timeout")) {
+        throw new Error("Food analysis server is busy. Please try scanning again in a few seconds.");
+      }
+
+      if (errString.includes("valid API key") || errString.includes("INVALID_ARGUMENT") || errString.includes("API Key") || errString.includes("YOUR_ACTUAL_KEY_HERE")) {
+        throw new Error("Invalid Google Gemini API Key. Please update VITE_GEMINI_API_KEY in .env with your real API key from Google AI Studio.");
+      }
+
+      if (errString.includes("400") || errString.includes("Bad Request") || errString.includes("invalid")) {
+        throw new Error("Could not process food analysis. Please check input text or try again.");
+      }
+
+      throw new Error(error?.message || "Could not process food analysis. Please check input text or try again.");
     }
   });
 
@@ -99,10 +133,10 @@ export const saveScan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => SaveScanSchema.parse(input))
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase.from("scan_history").insert({
-      user_id: context.userId,
+    const user = context.user;
+    const { error } = await context.supabase.from("scans").insert({
+      user_id: user.id,
       dish_name: data.result.dish_name,
-      input_type: data.inputType,
       safety_level: data.result.safety_level,
       calories: data.result.calories,
       protein_g: data.result.protein_g,
@@ -124,10 +158,33 @@ export const saveScan = createServerFn({ method: "POST" })
 function parseScanResultFallback(text: string | undefined): ScanResult | null {
   if (!text) return null;
   try {
-    const cleaned = text.replace(/^```json\s*|\s*```$/g, "").trim();
+    const cleaned = text.replace(/^```json\s*|\s*```$/g, "").replace(/^```\s*|\s*```$/g, "").trim();
     const parsed = JSON.parse(cleaned);
-    return ScanResultSchema.parse(parsed);
-  } catch {
+
+    const safety_level = parsed.safety_status || parsed.safety_level || "SAFE";
+    const explanation = parsed.summary || parsed.explanation || "";
+    const flagged_ingredients = parsed.detected_allergens || parsed.flagged_ingredients || [];
+    const calories = parsed.nutritional_info?.calories ?? parsed.calories ?? null;
+    const protein_g = parsed.nutritional_info?.protein_g ?? parsed.protein_g ?? null;
+    const carbs_g = parsed.nutritional_info?.carbs_g ?? parsed.carbs_g ?? null;
+    const fats_g = parsed.nutritional_info?.fats_g ?? parsed.fats_g ?? null;
+
+    return ScanResultSchema.parse({
+      dish_name: parsed.dish_name || "Food Item",
+      safety_level: ["SAFE", "CAUTION", "AVOID"].includes(safety_level) ? safety_level : "SAFE",
+      calories: typeof calories === "number" ? calories : null,
+      protein_g: typeof protein_g === "number" ? protein_g : null,
+      carbs_g: typeof carbs_g === "number" ? carbs_g : null,
+      fats_g: typeof fats_g === "number" ? fats_g : null,
+      fiber_g: typeof parsed.fiber_g === "number" ? parsed.fiber_g : null,
+      sugar_g: typeof parsed.sugar_g === "number" ? parsed.sugar_g : null,
+      sodium_mg: typeof parsed.sodium_mg === "number" ? parsed.sodium_mg : null,
+      flagged_ingredients: Array.isArray(flagged_ingredients) ? flagged_ingredients : [],
+      explanation: String(explanation),
+      waiter_question: String(parsed.waiter_question || "Ask server to confirm ingredient safety."),
+    });
+  } catch (err) {
+    console.error("Fallback JSON Parse Error:", err);
     return null;
   }
 }
@@ -151,13 +208,13 @@ export type SafeOrderResult = z.infer<typeof SafeOrderResultSchema>;
 export const generateSafeOrderOptions = createServerFn({ method: "POST" })
   .validator((input: unknown) => SafeOrderInputSchema.parse(input))
   .handler(async ({ data }) => {
-    const lovableApiKey = process.env.LOVABLE_API_KEY;
-    if (!lovableApiKey) {
-      throw new Error("Missing LOVABLE_API_KEY");
+    const apiKey = process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || process.env.LOVABLE_API_KEY;
+    if (!apiKey) {
+      throw new Error("Gemini API Key missing. Please check VITE_GEMINI_API_KEY in your settings.");
     }
 
-    const gateway = createLovableAiGatewayProvider(lovableApiKey);
-    const model = gateway("google/gemini-3.6-flash");
+    const gateway = createLovableAiGatewayProvider(apiKey);
+    const model = gateway("google/gemini-2.0-flash");
 
     const prompt = `You are NutriGuard's expert culinary safety assistant.
 A user is ordering "${data.dishName}" which was rated ${data.safetyLevel}.
@@ -224,13 +281,13 @@ const BatchMenuInputSchema = z.object({
 export const analyzeBatchMenu = createServerFn({ method: "POST" })
   .validator((input: unknown) => BatchMenuInputSchema.parse(input))
   .handler(async ({ data }) => {
-    const lovableApiKey = process.env.LOVABLE_API_KEY;
-    if (!lovableApiKey) {
-      throw new Error("Missing LOVABLE_API_KEY");
+    const apiKey = process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || process.env.LOVABLE_API_KEY;
+    if (!apiKey) {
+      throw new Error("Gemini API Key missing. Please check VITE_GEMINI_API_KEY in your settings.");
     }
 
-    const gateway = createLovableAiGatewayProvider(lovableApiKey);
-    const model = gateway("google/gemini-3.6-flash");
+    const gateway = createLovableAiGatewayProvider(apiKey);
+    const model = gateway("google/gemini-2.0-flash");
 
     const prompt = `You are NutriGuard's Instant Allergen Radar for scanning complete menu pages.
 Analyze the provided menu image and extract ALL distinct dishes visible on the menu page.

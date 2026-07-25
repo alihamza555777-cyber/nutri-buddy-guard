@@ -15,6 +15,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { User } from "@supabase/supabase-js";
 import { Leaf, Menu, X, Scan, ScanLine, History, User as UserIcon, UtensilsCrossed, ShieldAlert, Camera } from "lucide-react";
 import { DigitalWaiterCardModal } from "@/components/DigitalWaiterCardModal";
+import { Toaster } from "@/components/ui/sonner";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 function NotFoundComponent() {
   return (
@@ -261,7 +263,9 @@ function RootComponent() {
         </header>
 
         <main className="flex-1">
-          <Outlet />
+          <ErrorBoundary>
+            <Outlet />
+          </ErrorBoundary>
         </main>
 
         <footer className="hidden border-t border-border/60 bg-background py-8 md:block">
@@ -280,6 +284,8 @@ function RootComponent() {
           initialRestrictions={profileData?.dietary_flags ?? []}
           initialCustomNotes={profileData?.custom_notes ?? ""}
         />
+
+        <Toaster position="top-right" richColors />
       </div>
     </QueryClientProvider>
   );

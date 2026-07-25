@@ -38,6 +38,7 @@ import { DigitalWaiterCardModal } from "@/components/DigitalWaiterCardModal";
 import { BatchMenuResults } from "@/components/BatchMenuResults";
 import { WebcamScannerModal } from "@/components/WebcamScannerModal";
 import { CameraViewfinderModal } from "@/components/CameraViewfinderModal";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -186,7 +187,9 @@ function HomePage() {
         queryClient.invalidateQueries({ queryKey: ["today-summary"] });
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Analysis failed. Please try again.");
+      const errMsg = err instanceof Error ? err.message : "Analysis failed. Please try again.";
+      setError(errMsg);
+      toast.error(errMsg);
     } finally {
       setLoading(false);
     }
@@ -240,11 +243,29 @@ function HomePage() {
         });
         queryClient.invalidateQueries({ queryKey: ["today-summary"] });
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Analysis failed. Please try again.");
+    } catch (err: any) {
+      const errMsg = err instanceof Error ? err.message : "Analysis failed. Please try again.";
+      setError(errMsg);
+      toast.error(errMsg);
     } finally {
       setLoading(false);
     }
+  }
+
+  function validateImageFile(file: File): boolean {
+    if (!file.type.startsWith("image/")) {
+      const msg = "Invalid file type. Please upload a JPEG, PNG, or WebP image.";
+      setError(msg);
+      toast.error(msg);
+      return false;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      const msg = "Image size is too large. Please select an image under 10MB.";
+      setError(msg);
+      toast.error(msg);
+      return false;
+    }
+    return true;
   }
 
   function handleWebcamCapture(base64Image: string) {
@@ -254,6 +275,7 @@ function HomePage() {
   function handleNativeCameraCapture(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!validateImageFile(file)) return;
     const reader = new FileReader();
     reader.onloadend = () => {
       if (reader.result) {
@@ -266,6 +288,7 @@ function HomePage() {
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!validateImageFile(file)) return;
     const reader = new FileReader();
     reader.onloadend = () => {
       if (reader.result) {

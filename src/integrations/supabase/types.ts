@@ -16,9 +16,12 @@ export type Database = {
     Tables: {
       profiles: {
         Row: {
+          age: number | null
           created_at: string
           custom_notes: string | null
           dietary_flags: string[] | null
+          full_name: string | null
+          height_cm: number | null
           id: string
           notify_email: boolean
           notify_push: boolean
@@ -27,11 +30,15 @@ export type Database = {
           saved_brands: string[]
           target_calories: number | null
           target_protein: number | null
+          weight_kg: number | null
         }
         Insert: {
+          age?: number | null
           created_at?: string
           custom_notes?: string | null
           dietary_flags?: string[] | null
+          full_name?: string | null
+          height_cm?: number | null
           id: string
           notify_email?: boolean
           notify_push?: boolean
@@ -40,11 +47,15 @@ export type Database = {
           saved_brands?: string[]
           target_calories?: number | null
           target_protein?: number | null
+          weight_kg?: number | null
         }
         Update: {
+          age?: number | null
           created_at?: string
           custom_notes?: string | null
           dietary_flags?: string[] | null
+          full_name?: string | null
+          height_cm?: number | null
           id?: string
           notify_email?: boolean
           notify_push?: boolean
@@ -53,6 +64,7 @@ export type Database = {
           saved_brands?: string[]
           target_calories?: number | null
           target_protein?: number | null
+          weight_kg?: number | null
         }
         Relationships: []
       }
