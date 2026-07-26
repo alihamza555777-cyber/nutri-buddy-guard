@@ -20,6 +20,7 @@ import {
   Utensils,
   ChevronRight,
   Leaf,
+  User,
   Sparkles,
   Plus,
   X,
