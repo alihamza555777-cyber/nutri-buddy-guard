@@ -142,6 +142,72 @@ function HomePage() {
     return () => window.removeEventListener("nutriguard-open-camera", handleOpenCamera);
   }, []);
 
+  async function persistScanRecord(
+    currentUser: SupabaseUser,
+    inputType: "text" | "image",
+    scanResult: ScanResult,
+    imageFileObj?: File | null
+  ) {
+    let imageUrl: string | null = null;
+
+    if (imageFileObj) {
+      try {
+        const path = `${currentUser.id}/${Date.now()}-${imageFileObj.name}`;
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from("scan-images")
+          .upload(path, imageFileObj);
+        if (!uploadError && uploadData) {
+          const { data: signedData, error: signedError } = await supabase.storage
+            .from("scan-images")
+            .createSignedUrl(uploadData.path, 60 * 60 * 24 * 365);
+          imageUrl = signedError ? uploadData.path : signedData?.signedUrl ?? null;
+        }
+      } catch (uploadErr) {
+        console.warn("Non-fatal storage upload error:", uploadErr);
+      }
+    }
+
+    const { error: dbError } = await supabase.from("scan_history").insert({
+      user_id: currentUser.id,
+      dish_name: scanResult.dish_name,
+      input_type: inputType,
+      safety_level: scanResult.safety_level,
+      calories: scanResult.calories,
+      protein_g: scanResult.protein_g,
+      carbs_g: scanResult.carbs_g,
+      fats_g: scanResult.fats_g,
+      fiber_g: scanResult.fiber_g,
+      sugar_g: scanResult.sugar_g,
+      sodium_mg: scanResult.sodium_mg,
+      flagged_ingredients: scanResult.flagged_ingredients,
+      explanation: scanResult.explanation,
+      waiter_question: scanResult.server_question || scanResult.waiter_question,
+      image_url: imageUrl,
+    });
+
+    if (dbError) {
+      console.warn("Direct client insert failed, trying server function fallback...", dbError);
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+      await save({
+        data: {
+          inputType,
+          imageUrl,
+          result: scanResult,
+        },
+        headers,
+      });
+    }
+
+    queryClient.invalidateQueries({ queryKey: ["today-summary"] });
+    queryClient.invalidateQueries({ queryKey: ["scan-history"] });
+    toast.success("Scan saved to your history!");
+  }
+
   async function executeInstantScan(base64Data: string, fileObj?: File) {
     setImageBase64(base64Data);
     if (fileObj) setImageFile(fileObj);
@@ -167,40 +233,10 @@ function HomePage() {
 
       if (currentUser) {
         try {
-          const { data: sessionData } = await supabase.auth.getSession();
-          const token = sessionData.session?.access_token;
-          const headers: Record<string, string> = {};
-          if (token) {
-            headers["Authorization"] = `Bearer ${token}`;
-          }
-
-          let imageUrl: string | null = null;
-          if (fileObj) {
-            const path = `${currentUser.id}/${Date.now()}-${fileObj.name}`;
-            const { data: uploadData, error: uploadError } = await supabase.storage
-              .from("scan-images")
-              .upload(path, fileObj);
-            if (!uploadError && uploadData) {
-              const { data: signedData, error: signedError } = await supabase.storage
-                .from("scan-images")
-                .createSignedUrl(uploadData.path, 60 * 60 * 24 * 365);
-              imageUrl = signedError ? uploadData.path : signedData?.signedUrl ?? null;
-            }
-          }
-          await save({
-            data: {
-              inputType: "image",
-              imageUrl,
-              result: data,
-            },
-            headers,
-          });
-          queryClient.invalidateQueries({ queryKey: ["today-summary"] });
-          queryClient.invalidateQueries({ queryKey: ["scan-history"] });
-          toast.success("Scan saved to your history!");
+          await persistScanRecord(currentUser, "image", data, fileObj);
         } catch (saveError) {
-          console.error("Failed to save scan record to database:", saveError);
-          toast.error("Scan completed, but could not be saved to history.");
+          console.error("Failed to persist scan record:", saveError);
+          toast.error("Could not save scan to history.");
         }
       } else {
         toast.info("Sign in or create an account to save your scan history!");
@@ -243,40 +279,10 @@ function HomePage() {
 
       if (currentUser) {
         try {
-          const { data: sessionData } = await supabase.auth.getSession();
-          const token = sessionData.session?.access_token;
-          const headers: Record<string, string> = {};
-          if (token) {
-            headers["Authorization"] = `Bearer ${token}`;
-          }
-
-          let imageUrl: string | null = null;
-          if (imageFile) {
-            const path = `${currentUser.id}/${Date.now()}-${imageFile.name}`;
-            const { data: uploadData, error: uploadError } = await supabase.storage
-              .from("scan-images")
-              .upload(path, imageFile);
-            if (!uploadError && uploadData) {
-              const { data: signedData, error: signedError } = await supabase.storage
-                .from("scan-images")
-                .createSignedUrl(uploadData.path, 60 * 60 * 24 * 365);
-              imageUrl = signedError ? uploadData.path : signedData?.signedUrl ?? null;
-            }
-          }
-          await save({
-            data: {
-              inputType: tab,
-              imageUrl,
-              result: data,
-            },
-            headers,
-          });
-          queryClient.invalidateQueries({ queryKey: ["today-summary"] });
-          queryClient.invalidateQueries({ queryKey: ["scan-history"] });
-          toast.success("Scan saved to your history!");
+          await persistScanRecord(currentUser, tab, data, imageFile);
         } catch (saveError) {
-          console.error("Failed to save scan record to database:", saveError);
-          toast.error("Scan completed, but could not be saved to history.");
+          console.error("Failed to persist scan record:", saveError);
+          toast.error("Could not save scan to history.");
         }
       } else {
         toast.info("Sign in or create an account to save your scan history!");
