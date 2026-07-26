@@ -274,6 +274,18 @@ export function cleanJsonResponseText(rawText: string): string {
 }
 
 /**
+ * Helper to extract clean raw base64 string from input (stripping data:image prefix if present)
+ */
+export function extractCleanBase64(input: string): string {
+  if (!input) return "";
+  let clean = input.trim();
+  if (clean.includes("base64,")) {
+    clean = clean.split("base64,")[1] || clean;
+  }
+  return clean.trim();
+}
+
+/**
  * Analyzes food item using Groq's OpenAI-compatible chat completions endpoint.
  * Uses qwen/qwen3.6-27b for vision (camera image scans) and llama-3.3-70b-versatile for text-only dish searches.
  */
