@@ -87,20 +87,42 @@ You MUST respond strictly in valid, raw JSON (no markdown backticks, no markdown
 Below are visual demonstrations of the NutriGuard application across key user workflows:
 
 ### **1. Main Scanner & Food Allergen Inspection**
-.<img width="1224" height="691" alt="image" src="https://github.com/user-attachments/assets/16931bdd-652b-4b6b-9566-fc953697f5a1" />
+<img width="1224" height="691" alt="image" src="https://github.com/user-attachments/assets/16931bdd-652b-4b6b-9566-fc953697f5a1" />
 
+<img width="1224" height="691" alt="image" src="https://github.com/user-attachments/assets/5deebc93-3eab-4716-9742-6d7fdfaa2dc6" />
+
+<img width="1224" height="691" alt="image" src="https://github.com/user-attachments/assets/ad387ab0-6a73-40eb-8ab9-de96f3a6dcef" />
+
+<img width="1224" height="691" alt="image" src="https://github.com/user-attachments/assets/1de8ad6b-6732-4c77-9367-2afc424f481e" />
+
+<img width="1224" height="691" alt="image" src="https://github.com/user-attachments/assets/c55d8fab-aace-423e-8b07-584718e2eda6" />
 
 ### **2. Instant Menu Allergen Radar (`/menu-radar`)**
-![Screenshot 2: Instant Menu Allergen Radar Batch Dish Analysis](./screenshots/screenshot2.png)
+
+<img width="1224" height="691" alt="image" src="https://github.com/user-attachments/assets/b88c3879-d12b-4781-bb44-9f4c04defbad" />
+
+
 
 ### **3. Dining Out Mode & Digital Waiter Card Modal**
-![Screenshot 3: Digital Waiter Card & Server Questions](./screenshots/screenshot3.png)
+
+<img width="1224" height="691" alt="image" src="https://github.com/user-attachments/assets/c70c1df0-5395-458f-9306-0d7fd7abf367" />
+
+<img width="1224" height="691" alt="image" src="https://github.com/user-attachments/assets/9efdbb1c-0213-42ba-912e-6b1fea1a0ae2" />
+
+<img width="1224" height="691" alt="image" src="https://github.com/user-attachments/assets/66554b00-8f7f-4bca-8d7b-da9887aae6e8" />
+
 
 ### **4. Daily Nutrition Budget & Allergen Dashboard**
-![Screenshot 4: Daily Nutrition & Macronutrient Budget Dashboard](./screenshots/screenshot4.png)
+
+<img width="1224" height="691" alt="image" src="https://github.com/user-attachments/assets/1b10ffca-1b4c-4309-af04-02891e36e54f" />
+
 
 ### **5. Scan History & Profile Management (`/history` & `/profile`)**
-![Screenshot 5: Scan History Log with Single & Bulk Deletion](./screenshots/screenshot5.png)
+
+<img width="1224" height="691" alt="image" src="https://github.com/user-attachments/assets/f1206e33-671f-4662-a572-0b252344cccc" />
+
+<img width="1224" height="691" alt="image" src="https://github.com/user-attachments/assets/703c2e69-aef7-4052-b04c-05688a778248" />
+
 
 ---
 
