@@ -101,6 +101,7 @@ Below are visual demonstrations of the NutriGuard application across key user wo
 
 <img width="1224" height="691" alt="image" src="https://github.com/user-attachments/assets/b88c3879-d12b-4781-bb44-9f4c04defbad" />
 
+<img width="1223" height="693" alt="image" src="https://github.com/user-attachments/assets/c3a2df7d-0799-4ad2-a61f-19d61fafddd4" />
 
 
 ### **3. Dining Out Mode & Digital Waiter Card Modal**
