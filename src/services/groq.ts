@@ -4,8 +4,152 @@
  */
 
 export const GROQ_TEXT_MODEL = "llama-3.3-70b-versatile";
-export const GROQ_VISION_MODEL = "qwen/qwen3.6-27b";
+export const GROQ_VISION_MODEL = "llama-3.2-11b-vision-preview";
+export const GROQ_VISION_FALLBACK_MODEL = "qwen/qwen3.6-27b";
 export const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
+
+/**
+ * Downscales a Base64 image data URL to a maximum width/height of 800px
+ * to drastically reduce token consumption for vision LLM requests.
+ */
+export async function downscaleBase64Image(
+  rawInput: string,
+  maxWidth = 800,
+  maxHeight = 800
+): Promise<string> {
+  if (!rawInput || typeof window === "undefined" || !window.document) {
+    return rawInput;
+  }
+
+  let dataUrl = rawInput.trim();
+  if (!dataUrl.startsWith("data:image/")) {
+    const cleanBase64 = extractCleanBase64(dataUrl);
+    if (!cleanBase64) return rawInput;
+    dataUrl = `data:image/jpeg;base64,${cleanBase64}`;
+  }
+
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      let { width, height } = img;
+
+      if (width <= maxWidth && height <= maxHeight) {
+        resolve(dataUrl);
+        return;
+      }
+
+      if (width > height) {
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+      } else {
+        if (height > maxHeight) {
+          width = Math.round((width * maxHeight) / height);
+          height = maxHeight;
+        }
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        resolve(dataUrl);
+        return;
+      }
+
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL("image/jpeg", 0.82));
+    };
+
+    img.onerror = () => {
+      resolve(dataUrl);
+    };
+
+    img.src = dataUrl;
+  });
+}
+
+/**
+ * Helper function to execute Groq API completion with automatic fallback retry
+ * for 429 Rate Limits and 400 json_validate_failed errors.
+ */
+async function executeGroqCompletion(
+  apiKey: string,
+  payload: any
+): Promise<any> {
+  const response = await fetch(GROQ_API_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.warn(`Groq API returned HTTP ${response.status}:`, errorText);
+
+    // 1. Handle HTTP 429 Rate Limit
+    if (response.status === 429 || errorText.includes("rate_limit_exceeded") || errorText.includes("TPM") || errorText.includes("RPM")) {
+      const currentModel = payload.model;
+      const isVision = currentModel === GROQ_VISION_MODEL || currentModel === GROQ_VISION_FALLBACK_MODEL;
+      const fallbackModel = currentModel === GROQ_VISION_MODEL ? GROQ_VISION_FALLBACK_MODEL : GROQ_VISION_MODEL;
+
+      if (isVision && fallbackModel !== currentModel) {
+        console.warn(`429 Rate Limit on ${currentModel}. Retrying vision request with fallback model ${fallbackModel}...`);
+        const fallbackPayload = { ...payload, model: fallbackModel };
+        const retryRes = await fetch(GROQ_API_URL, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(fallbackPayload),
+        });
+
+        if (retryRes.ok) {
+          return await retryRes.json();
+        }
+      }
+
+      throw new Error("AI engine is cooling down. Please wait 10 seconds and try again.");
+    }
+
+    // 2. Handle HTTP 400 json_validate_failed
+    if (response.status === 400 && payload.response_format && errorText.includes("json_validate_failed")) {
+      console.warn("Groq JSON validator rejected request. Retrying completion without strict response_format constraint...");
+      const fallbackPayload = { ...payload };
+      delete fallbackPayload.response_format;
+
+      const retryResponse = await fetch(GROQ_API_URL, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(fallbackPayload),
+      });
+
+      if (!retryResponse.ok) {
+        const retryErrorText = await retryResponse.text();
+        if (retryResponse.status === 429 || retryErrorText.includes("rate_limit_exceeded")) {
+          throw new Error("AI engine is cooling down. Please wait 10 seconds and try again.");
+        }
+        throw new Error(`Groq API request failed (${retryResponse.status}): ${cleanGroqErrorMessage(retryErrorText)}`);
+      }
+      return await retryResponse.json();
+    }
+
+    throw new Error(`Groq API request failed (${response.status}): ${cleanGroqErrorMessage(errorText)}`);
+  }
+
+  return await response.json();
+}
 
 export interface GroqFoodAnalysisResult {
   dish_name: string;
@@ -130,79 +274,6 @@ export function cleanJsonResponseText(rawText: string): string {
 }
 
 /**
- * Helper to extract clean raw base64 string from input (stripping data:image prefix if present)
- */
-export function extractCleanBase64(input: string): string {
-  if (!input) return "";
-  let clean = input.trim();
-  if (clean.includes("base64,")) {
-    clean = clean.split("base64,")[1] || clean;
-  }
-  return clean.trim();
-}
-
-/**
- * Helper function to execute Groq API completion with automatic fallback retry
- * if response_format: { type: "json_object" } triggers a 400 json_validate_failed error.
- */
-async function executeGroqCompletion(
-  apiKey: string,
-  payload: any
-): Promise<any> {
-  const response = await fetch(GROQ_API_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.warn(`Groq API returned HTTP ${response.status}:`, errorText);
-
-    // Automatic fallback retry if response_format: { type: "json_object" } triggered a 400 json_validate_failed
-    if (response.status === 400 && payload.response_format && errorText.includes("json_validate_failed")) {
-      console.warn("Groq JSON validator rejected request. Retrying completion without strict response_format constraint...");
-      const fallbackPayload = { ...payload };
-      delete fallbackPayload.response_format;
-
-      const retryResponse = await fetch(GROQ_API_URL, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(fallbackPayload),
-      });
-
-      if (!retryResponse.ok) {
-        const retryErrorText = await retryResponse.text();
-        throw new Error(`Groq API request failed (${retryResponse.status}): ${cleanGroqErrorMessage(retryErrorText)}`);
-      }
-      return await retryResponse.json();
-    }
-
-    throw new Error(`Groq API request failed (${response.status}): ${cleanGroqErrorMessage(errorText)}`);
-  }
-
-  return await response.json();
-}
-
-function cleanGroqErrorMessage(rawText: string): string {
-  try {
-    const parsed = JSON.parse(rawText);
-    if (parsed?.error?.message) {
-      return parsed.error.message;
-    }
-  } catch {
-    // ignore
-  }
-  return rawText.slice(0, 300);
-}
-
-/**
  * Analyzes food item using Groq's OpenAI-compatible chat completions endpoint.
  * Uses qwen/qwen3.6-27b for vision (camera image scans) and llama-3.3-70b-versatile for text-only dish searches.
  */
@@ -229,10 +300,11 @@ export async function analyzeFoodWithGroq(
   let messages: any[];
 
   if (isImage) {
-    const cleanBase64 = extractCleanBase64(rawInput);
+    const downscaledImage = await downscaleBase64Image(rawInput, 800, 800);
+    const cleanBase64 = extractCleanBase64(downscaledImage);
     const imageUrl =
-      rawInput.startsWith("http://") || rawInput.startsWith("https://")
-        ? rawInput
+      downscaledImage.startsWith("http://") || downscaledImage.startsWith("https://")
+        ? downscaledImage
         : `data:image/jpeg;base64,${cleanBase64}`;
 
     const systemPrompt = `You are NutriGuard's specialized clinical nutritionist and dietary vision AI.
@@ -487,10 +559,11 @@ export async function analyzeBatchMenuWithGroq(options: {
   const apiKey = getGroqApiKey();
 
   const rawImage = options.imageBase64.trim();
-  const cleanBase64 = extractCleanBase64(rawImage);
+  const downscaledImage = await downscaleBase64Image(rawImage, 800, 800);
+  const cleanBase64 = extractCleanBase64(downscaledImage);
   const imageUrl =
-    rawImage.startsWith("http://") || rawImage.startsWith("https://")
-      ? rawImage
+    downscaledImage.startsWith("http://") || downscaledImage.startsWith("https://")
+      ? downscaledImage
       : `data:image/jpeg;base64,${cleanBase64}`;
 
   const systemPrompt = "You are NutriGuard's Instant Allergen Radar AI. Respond strictly in valid JSON format matching: { \"items\": [ { \"dish_name\": \"Dish Name\", \"safety_level\": \"SAFE\", \"detected_allergens\": [], \"brief_summary\": \"Summary\" } ] }";

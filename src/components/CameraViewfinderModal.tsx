@@ -99,9 +99,24 @@ export function CameraViewfinderModal({
       return;
     }
 
+    const maxDimension = 800;
+    let width = video.videoWidth;
+    let height = video.videoHeight;
+    if (width > height) {
+      if (width > maxDimension) {
+        height = Math.round((height * maxDimension) / width);
+        width = maxDimension;
+      }
+    } else {
+      if (height > maxDimension) {
+        width = Math.round((width * maxDimension) / height);
+        height = maxDimension;
+      }
+    }
+
     const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    canvas.width = width;
+    canvas.height = height;
     const ctx = canvas.getContext("2d");
 
     if (!ctx) return;
@@ -113,7 +128,7 @@ export function CameraViewfinderModal({
     }
 
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const base64 = canvas.toDataURL("image/jpeg", 0.92);
+    const base64 = canvas.toDataURL("image/jpeg", 0.85);
 
     stopCamera();
     onCapture(base64);
