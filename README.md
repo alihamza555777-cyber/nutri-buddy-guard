@@ -1,6 +1,6 @@
 # 🥗 NutriGuard — AI-Powered Food & Allergen Inspection System
 
-> **Live Production Deployment URL:** [https://nutri-buddy-guard-buddy.vercel.app](https://nutri-buddy-guard-buddy.vercel.app)
+> **Live Production Deployment URL:** [https://nutri-guard-buddy.vercel.app](https://nutri-guard-buddy.vercel.app)
 
 ---
 
@@ -20,7 +20,7 @@ NutriGuard is an end-to-end, intelligent dietary vision assistant and allergen i
 ---
 
 ## 🌐 Live Deployed Application
-- **Production Web App:** [https://nutri-buddy-guard-buddy.vercel.app](https://nutri-buddy-guard-buddy.vercel.app)
+- **Production Web App:** [https://nutri-guard-buddy.vercel.app](https://nutri-guard-buddy.vercel.app)
 
 ---
 
@@ -146,4 +146,4 @@ npm run build
 - **Project:** NutriGuard (Nutri-Buddy-Guard)
 - **Author:** Ali Hamza
 - **Repository:** [https://github.com/alihamza555777-cyber/nutri-buddy-guard](https://github.com/alihamza555777-cyber/nutri-buddy-guard)
-- **Live URL:** [https://nutri-buddy-guard-buddy.vercel.app](https://nutri-buddy-guard-buddy.vercel.app)
+- **Live URL:** [https://nutri-guard-buddy.vercel.app](https://nutri-guard-buddy.vercel.app)
