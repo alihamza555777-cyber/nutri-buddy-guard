@@ -19,7 +19,7 @@ export interface TodayNutritionSummary {
 
 export const getScanHistory = createServerFn({ method: "GET" })
   .middleware([optionalSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(async ({ context }: any) => {
     const userId = context.userId || context.user?.id;
     if (!userId || !context.isAuthenticated) {
       return [];
@@ -40,7 +40,7 @@ export const getScanHistory = createServerFn({ method: "GET" })
 
 export const getTodayNutritionSummary = createServerFn({ method: "GET" })
   .middleware([optionalSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(async ({ context }: any) => {
     const userId = context.userId || context.user?.id;
     if (!userId || !context.isAuthenticated) {
       return {
@@ -60,18 +60,17 @@ export const getTodayNutritionSummary = createServerFn({ method: "GET" })
       };
     }
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayISO = today.toISOString();
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
 
     const { data: scans, error: scansError } = await context.supabase
       .from("scan_history")
       .select("*")
       .eq("user_id", userId)
-      .gte("created_at", todayISO);
+      .gte("created_at", startOfDay.toISOString());
 
     if (scansError) {
-      console.warn("Could not fetch today nutrition summary scans:", scansError.message);
+      console.warn("Could not fetch today's nutrition summary:", scansError.message);
     }
 
     const { data: profile } = await context.supabase
@@ -80,43 +79,55 @@ export const getTodayNutritionSummary = createServerFn({ method: "GET" })
       .eq("id", userId)
       .maybeSingle();
 
-    const summary: TodayNutritionSummary = {
-      totalCalories: 0,
-      totalProtein: 0,
-      totalCarbs: 0,
-      totalFats: 0,
-      totalFiber: 0,
-      totalSugar: 0,
-      totalSodium: 0,
-      safeCount: 0,
-      cautionCount: 0,
-      avoidCount: 0,
-      totalScans: scans?.length ?? 0,
+    const scanList = scans ?? [];
+
+    let totalCalories = 0;
+    let totalProtein = 0;
+    let totalCarbs = 0;
+    let totalFats = 0;
+    let totalFiber = 0;
+    let totalSugar = 0;
+    let totalSodium = 0;
+    let safeCount = 0;
+    let cautionCount = 0;
+    let avoidCount = 0;
+
+    for (const item of scanList) {
+      if (typeof item.calories === "number") totalCalories += item.calories;
+      if (typeof item.protein_g === "number") totalProtein += item.protein_g;
+      if (typeof item.carbs_g === "number") totalCarbs += item.carbs_g;
+      if (typeof item.fats_g === "number") totalFats += item.fats_g;
+      if (typeof item.fiber_g === "number") totalFiber += item.fiber_g;
+      if (typeof item.sugar_g === "number") totalSugar += item.sugar_g;
+      if (typeof item.sodium_mg === "number") totalSodium += item.sodium_mg;
+
+      const level = (item.safety_level || "").toUpperCase();
+      if (level === "SAFE") safeCount++;
+      else if (level === "AVOID") avoidCount++;
+      else cautionCount++;
+    }
+
+    return {
+      totalCalories,
+      totalProtein,
+      totalCarbs,
+      totalFats,
+      totalFiber,
+      totalSugar,
+      totalSodium,
+      safeCount,
+      cautionCount,
+      avoidCount,
+      totalScans: scanList.length,
       targetCalories: profile?.target_calories ?? null,
       targetProtein: profile?.target_protein ?? null,
     };
-
-    for (const scan of scans ?? []) {
-      summary.totalCalories += scan.calories ?? 0;
-      summary.totalProtein += scan.protein_g ?? 0;
-      summary.totalCarbs += scan.carbs_g ?? 0;
-      summary.totalFats += scan.fats_g ?? 0;
-      summary.totalFiber += scan.fiber_g ?? 0;
-      summary.totalSugar += scan.sugar_g ?? 0;
-      summary.totalSodium += scan.sodium_mg ?? 0;
-
-      if (scan.safety_level === "SAFE") summary.safeCount++;
-      else if (scan.safety_level === "CAUTION") summary.cautionCount++;
-      else if (scan.safety_level === "AVOID") summary.avoidCount++;
-    }
-
-    return summary;
   });
 
 export const deleteScanRecord = createServerFn({ method: "POST" })
   .middleware([optionalSupabaseAuth])
   .validator((input: unknown) => ({ scanId: String((input as any)?.scanId || "") }))
-  .handler(async ({ data, context }) => {
+  .handler(async ({ data, context }: any) => {
     const userId = context.userId || context.user?.id;
     if (!userId || !context.isAuthenticated) {
       throw new Error("Unauthorized: Login required to delete scan.");
@@ -133,7 +144,7 @@ export const deleteScanRecord = createServerFn({ method: "POST" })
 
 export const clearAllScanRecords = createServerFn({ method: "POST" })
   .middleware([optionalSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(async ({ context }: any) => {
     const userId = context.userId || context.user?.id;
     if (!userId || !context.isAuthenticated) {
       throw new Error("Unauthorized: Login required to clear scan history.");

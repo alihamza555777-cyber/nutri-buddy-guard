@@ -20,7 +20,7 @@ const ProfileUpdateSchema = z.object({
 
 export const getProfile = createServerFn({ method: "GET" })
   .middleware([optionalSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(async ({ context }: any) => {
     const userId = context.userId || context.user?.id;
     if (!userId || !context.isAuthenticated) {
       return null;
@@ -43,7 +43,7 @@ export const getProfile = createServerFn({ method: "GET" })
 export const updateProfile = createServerFn({ method: "POST" })
   .middleware([optionalSupabaseAuth])
   .validator((input: unknown) => ProfileUpdateSchema.parse(input))
-  .handler(async ({ data, context }) => {
+  .handler(async ({ data, context }: any) => {
     const userId = context.userId || context.user?.id;
     if (!userId || !context.isAuthenticated) {
       throw new Error("Please sign in to update your profile.");

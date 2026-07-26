@@ -212,7 +212,7 @@ function HistoryPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          {displayScans.map((scan) => (
+          {displayScans.map((scan: any) => (
             <div
               key={scan.id}
               className="w-full max-w-full rounded-3xl border border-border bg-card p-4 sm:p-6 shadow-sm transition-all duration-150 hover:bg-accent/20 overflow-hidden"

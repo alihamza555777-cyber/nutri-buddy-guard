@@ -205,7 +205,6 @@ function HomePage() {
         dish_name: String(scanResult.dish_name || (scanResult as any).dishName || "Unknown Dish"),
         input_type: String(inputType),
         safety_level: validSafetyStatus,
-        safety_status: validSafetyStatus,
         calories: typeof scanResult.calories === "number" ? scanResult.calories : (typeof n.calories === "number" ? n.calories : null),
         protein_g: typeof scanResult.protein_g === "number" ? scanResult.protein_g : (typeof n.protein_g === "number" ? n.protein_g : null),
         carbs_g: typeof scanResult.carbs_g === "number" ? scanResult.carbs_g : (typeof n.carbs_g === "number" ? n.carbs_g : null),
