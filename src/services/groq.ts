@@ -318,6 +318,19 @@ export function extractCleanBase64(input: string): string {
 }
 
 /**
+ * Ensures valid image URL formatting preserving PNG/JPEG/WebP MIME headers
+ */
+export function formatGroqImageUrl(input: string): string {
+  if (!input) return "";
+  const trimmed = input.trim();
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://") || trimmed.startsWith("data:image/")) {
+    return trimmed;
+  }
+  const clean = extractCleanBase64(trimmed);
+  return `data:image/jpeg;base64,${clean}`;
+}
+
+/**
  * Analyzes food item using Groq's OpenAI-compatible chat completions endpoint.
  * Uses qwen/qwen3.6-27b for vision (camera image scans) and llama-3.3-70b-versatile for text-only dish searches.
  */
@@ -345,11 +358,7 @@ export async function analyzeFoodWithGroq(
 
   if (isImage) {
     const downscaledImage = await downscaleBase64Image(rawInput, 800, 800);
-    const cleanBase64 = extractCleanBase64(downscaledImage);
-    const imageUrl =
-      downscaledImage.startsWith("http://") || downscaledImage.startsWith("https://")
-        ? downscaledImage
-        : `data:image/jpeg;base64,${cleanBase64}`;
+    const imageUrl = formatGroqImageUrl(downscaledImage);
 
     const systemPrompt = `You are NutriGuard's specialized clinical nutritionist and dietary vision AI.
 Inspect the food image provided in this request carefully.
@@ -604,11 +613,7 @@ export async function analyzeBatchMenuWithGroq(options: {
 
   const rawImage = options.imageBase64.trim();
   const downscaledImage = await downscaleBase64Image(rawImage, 800, 800);
-  const cleanBase64 = extractCleanBase64(downscaledImage);
-  const imageUrl =
-    downscaledImage.startsWith("http://") || downscaledImage.startsWith("https://")
-      ? downscaledImage
-      : `data:image/jpeg;base64,${cleanBase64}`;
+  const imageUrl = formatGroqImageUrl(downscaledImage);
 
   const systemPrompt = "You are NutriGuard's Instant Allergen Radar AI. Respond strictly in valid JSON format matching: { \"items\": [ { \"dish_name\": \"Dish Name\", \"safety_level\": \"SAFE\", \"detected_allergens\": [], \"brief_summary\": \"Summary\" } ] }";
   const promptText = `
