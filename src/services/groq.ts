@@ -274,14 +274,34 @@ export function isGroqConfigured(): boolean {
 }
 
 /**
- * Cleans markdown formatting backticks (```json ... ```) before JSON.parse()
+ * Cleans markdown formatting backticks (```json ... ```), <think>...</think> reasoning tags,
+ * and conversational text before JSON.parse()
  */
 export function cleanJsonResponseText(rawText: string): string {
   if (!rawText) return "";
   let cleaned = rawText.trim();
-  if (cleaned.startsWith("```")) {
-    cleaned = cleaned.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
+
+  // 1. Strip <think>...</think> reasoning blocks emitted by Qwen/DeepSeek models
+  cleaned = cleaned.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+
+  // 2. Strip markdown backticks
+  if (cleaned.includes("```")) {
+    cleaned = cleaned.replace(/```(?:json)?/gi, "").replace(/```/g, "").trim();
   }
+
+  // 3. Extract strictly between first '{' and last '}' (or '[' and ']')
+  const firstCurly = cleaned.indexOf("{");
+  const lastCurly = cleaned.lastIndexOf("}");
+  if (firstCurly !== -1 && lastCurly !== -1 && lastCurly > firstCurly) {
+    cleaned = cleaned.substring(firstCurly, lastCurly + 1);
+  } else {
+    const firstSquare = cleaned.indexOf("[");
+    const lastSquare = cleaned.lastIndexOf("]");
+    if (firstSquare !== -1 && lastSquare !== -1 && lastSquare > firstSquare) {
+      cleaned = cleaned.substring(firstSquare, lastSquare + 1);
+    }
+  }
+
   return cleaned.trim();
 }
 
