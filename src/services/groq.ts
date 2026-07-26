@@ -281,8 +281,8 @@ export function cleanJsonResponseText(rawText: string): string {
   if (!rawText) return "";
   let cleaned = rawText.trim();
 
-  // 1. Strip <think>...</think> reasoning blocks emitted by Qwen/DeepSeek models
-  cleaned = cleaned.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+  // 1. Strip <think>...</think> reasoning blocks emitted by Qwen/DeepSeek models (including unclosed <think> blocks)
+  cleaned = cleaned.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
 
   // 2. Strip markdown backticks
   if (cleaned.includes("```")) {
@@ -615,19 +615,43 @@ export async function analyzeBatchMenuWithGroq(options: {
   const downscaledImage = await downscaleBase64Image(rawImage, 800, 800);
   const imageUrl = formatGroqImageUrl(downscaledImage);
 
-  const systemPrompt = "You are NutriGuard's Instant Allergen Radar AI. Respond strictly in valid JSON format matching: { \"items\": [ { \"dish_name\": \"Dish Name\", \"safety_level\": \"SAFE\", \"detected_allergens\": [], \"brief_summary\": \"Summary\" } ] }";
+  const systemPrompt = `You are NutriGuard's specialized clinical nutritionist and Instant Menu Allergen Radar AI.
+Your sole job is to inspect restaurant menu photo images and extract every visible dish into structured JSON.
+
+CRITICAL OUTPUT REQUIREMENTS:
+- Output ONLY valid JSON matching the exact target schema.
+- Do NOT output any reasoning steps, explanation text, preamble, or <think> tags.
+- Output MUST begin directly with '{' and end with '}'.
+
+Target JSON Schema:
+{
+  "items": [
+    {
+      "dish_name": "Name of Dish",
+      "safety_level": "SAFE" | "CAUTION" | "AVOID",
+      "detected_allergens": ["Allergen 1", "Allergen 2"],
+      "brief_summary": "One concise sentence explaining safety or allergen risks."
+    }
+  ]
+}`;
+
   const promptText = `
-You are NutriGuard's Instant Allergen Radar.
-Analyze the provided menu image and extract ALL distinct dishes visible on the menu page.
+Analyze the attached restaurant menu image and extract ALL distinct menu items/dishes visible.
 
-User dietary restrictions: ${options.restrictions.join(", ") || "None specified"}
-User custom notes: ${options.customNotes || "None"}
+User Dietary Restrictions & Allergies: [${options.restrictions.join(", ") || "None specified"}]
+User Custom Medical Notes: [${options.customNotes || "None"}]
 
-Return a JSON object containing an "items" array where each object has:
-- dish_name: string
-- safety_level: "SAFE", "CAUTION", or "AVOID"
-- detected_allergens: array of strings
-- brief_summary: 1 sentence summary
+For each dish detected on the menu:
+1. Extract the exact dish title.
+2. Cross-reference its typical ingredients and preparation against the user's restrictions and custom notes.
+3. Assign "safety_level":
+   - "SAFE": No allergen or restriction match.
+   - "CAUTION": High cross-contamination risk or questionable preparation.
+   - "AVOID": Contains a direct restriction/allergen match.
+4. List any detected_allergens that conflict with the user's settings.
+5. Provide a 1-sentence brief_summary.
+
+Respond strictly in valid JSON matching the schema.
 `;
 
   try {
