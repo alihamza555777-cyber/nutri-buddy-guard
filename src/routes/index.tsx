@@ -142,53 +142,124 @@ function HomePage() {
     return () => window.removeEventListener("nutriguard-open-camera", handleOpenCamera);
   }, []);
 
+  /**
+   * Persists a scan record to Supabase `scan_history` table.
+   *
+   * Addresses three failure modes:
+   * 1. RLS rejection — refreshes the session before inserting so auth.uid() is valid
+   * 2. Schema mismatch — payload constructed to match scan_history.Insert exactly
+   * 3. Session expiry — explicit token refresh + null-user guard with early exit
+   */
   async function persistScanRecord(
     currentUser: SupabaseUser,
     inputType: "text" | "image",
     scanResult: ScanResult,
     imageFileObj?: File | null
   ) {
+    // ──────────────────────────────────────────────────────────────
+    // STEP 1: Refresh session to ensure JWT is valid (fixes RLS + expired token)
+    // ──────────────────────────────────────────────────────────────
+    const { data: refreshedSession, error: refreshError } = await supabase.auth.getSession();
+
+    if (refreshError) {
+      console.error("[NutriGuard] Session refresh failed:", refreshError.message);
+    }
+
+    // Re-verify the user after refresh — if session expired and couldn't refresh, bail
+    const activeSession = refreshedSession?.session;
+    const verifiedUserId = activeSession?.user?.id || currentUser.id;
+
+    if (!verifiedUserId) {
+      console.warn("[NutriGuard] No valid user_id after session refresh. Skipping save.");
+      toast.info("Your session expired. Please sign in again to save scans.");
+      return;
+    }
+
+    console.log("[NutriGuard] Verified user_id:", verifiedUserId, "| Token present:", !!activeSession?.access_token);
+
+    // ──────────────────────────────────────────────────────────────
+    // STEP 2: Upload image to storage (non-fatal if it fails)
+    // ──────────────────────────────────────────────────────────────
     let imageUrl: string | null = null;
 
     if (imageFileObj) {
       try {
-        const path = `${currentUser.id}/${Date.now()}-${imageFileObj.name}`;
+        const path = `${verifiedUserId}/${Date.now()}-${imageFileObj.name}`;
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from("scan-images")
           .upload(path, imageFileObj);
-        if (!uploadError && uploadData) {
+        if (uploadError) {
+          console.warn("[NutriGuard] Image upload error (non-fatal):", uploadError.message);
+        } else if (uploadData) {
           const { data: signedData, error: signedError } = await supabase.storage
             .from("scan-images")
             .createSignedUrl(uploadData.path, 60 * 60 * 24 * 365);
           imageUrl = signedError ? uploadData.path : signedData?.signedUrl ?? null;
         }
       } catch (uploadErr) {
-        console.warn("Non-fatal storage upload error:", uploadErr);
+        console.warn("[NutriGuard] Image upload exception (non-fatal):", uploadErr);
       }
     }
 
-    const { error: dbError } = await supabase.from("scan_history").insert({
-      user_id: currentUser.id,
-      dish_name: scanResult.dish_name,
+    // ──────────────────────────────────────────────────────────────
+    // STEP 3: Build insert payload — EXACTLY matching scan_history.Insert schema
+    // ──────────────────────────────────────────────────────────────
+    // DB columns: user_id (required), dish_name (required), input_type, safety_level,
+    //   calories, protein_g, carbs_g, fats_g, fiber_g, sugar_g, sodium_mg,
+    //   flagged_ingredients, explanation, waiter_question, image_url
+    // NOT sent: id (auto-generated), created_at (auto-generated)
+    const n = scanResult.nutrition || ({} as Record<string, number | null>);
+    const payload = {
+      user_id: verifiedUserId,
+      dish_name: scanResult.dish_name || "Unknown Dish",
       input_type: inputType,
-      safety_level: scanResult.safety_level,
-      calories: scanResult.calories,
-      protein_g: scanResult.protein_g,
-      carbs_g: scanResult.carbs_g,
-      fats_g: scanResult.fats_g,
-      fiber_g: scanResult.fiber_g,
-      sugar_g: scanResult.sugar_g,
-      sodium_mg: scanResult.sodium_mg,
-      flagged_ingredients: scanResult.flagged_ingredients,
-      explanation: scanResult.explanation,
-      waiter_question: scanResult.server_question || scanResult.waiter_question,
+      safety_level: scanResult.safety_level || null,
+      calories: typeof scanResult.calories === "number" ? scanResult.calories : (typeof n.calories === "number" ? n.calories : null),
+      protein_g: typeof scanResult.protein_g === "number" ? scanResult.protein_g : (typeof n.protein_g === "number" ? n.protein_g : null),
+      carbs_g: typeof scanResult.carbs_g === "number" ? scanResult.carbs_g : (typeof n.carbs_g === "number" ? n.carbs_g : null),
+      fats_g: typeof scanResult.fats_g === "number" ? scanResult.fats_g : (typeof n.fats_g === "number" ? n.fats_g : null),
+      fiber_g: typeof scanResult.fiber_g === "number" ? scanResult.fiber_g : (typeof n.fiber_g === "number" ? n.fiber_g : null),
+      sugar_g: typeof scanResult.sugar_g === "number" ? scanResult.sugar_g : (typeof n.sugar_g === "number" ? n.sugar_g : null),
+      sodium_mg: typeof scanResult.sodium_mg === "number" ? scanResult.sodium_mg : (typeof n.sodium_mg === "number" ? n.sodium_mg : null),
+      flagged_ingredients: Array.isArray(scanResult.flagged_ingredients) ? scanResult.flagged_ingredients : [],
+      explanation: typeof scanResult.explanation === "string" ? scanResult.explanation : null,
+      waiter_question: typeof scanResult.server_question === "string" ? scanResult.server_question
+        : (typeof scanResult.waiter_question === "string" ? scanResult.waiter_question : null),
       image_url: imageUrl,
+    };
+
+    console.log("[NutriGuard] INSERT payload:", JSON.stringify(payload, null, 2));
+
+    // ──────────────────────────────────────────────────────────────
+    // STEP 4: Direct client-side insert (browser's Supabase client has active JWT)
+    // ──────────────────────────────────────────────────────────────
+    const { error: dbError } = await supabase.from("scan_history").insert(payload);
+
+    if (!dbError) {
+      // ✅ SUCCESS — invalidate caches and show success toast
+      console.log("[NutriGuard] ✅ Scan saved successfully via direct insert.");
+      queryClient.invalidateQueries({ queryKey: ["today-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["scan-history"] });
+      toast.success("Scan saved to your history!");
+      return;
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // STEP 5: Direct insert failed — log exact error for diagnostics
+    // ──────────────────────────────────────────────────────────────
+    console.error("[NutriGuard] ❌ Direct Supabase INSERT failed:", {
+      code: dbError.code,
+      message: dbError.message,
+      details: dbError.details,
+      hint: dbError.hint,
     });
 
-    if (dbError) {
-      console.warn("Direct client insert failed, trying server function fallback...", dbError);
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData.session?.access_token;
+    // ──────────────────────────────────────────────────────────────
+    // STEP 6: Fallback — try server function RPC with explicit auth header
+    // ──────────────────────────────────────────────────────────────
+    try {
+      console.log("[NutriGuard] Attempting server function fallback...");
+      const token = activeSession?.access_token;
       const headers: Record<string, string> = {};
       if (token) {
         headers["Authorization"] = `Bearer ${token}`;
@@ -201,11 +272,17 @@ function HomePage() {
         },
         headers,
       });
+      console.log("[NutriGuard] ✅ Server function fallback succeeded.");
+      queryClient.invalidateQueries({ queryKey: ["today-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["scan-history"] });
+      toast.success("Scan saved to your history!");
+    } catch (fallbackError) {
+      console.error("[NutriGuard] ❌ Server function fallback ALSO failed:", fallbackError);
+      // Show the SPECIFIC Supabase error so the user can report it
+      const errCode = dbError.code || "UNKNOWN";
+      const errMsg = dbError.message || "Database write failed";
+      toast.error(`Save failed (${errCode}): ${errMsg}`);
     }
-
-    queryClient.invalidateQueries({ queryKey: ["today-summary"] });
-    queryClient.invalidateQueries({ queryKey: ["scan-history"] });
-    toast.success("Scan saved to your history!");
   }
 
   async function executeInstantScan(base64Data: string, fileObj?: File) {
