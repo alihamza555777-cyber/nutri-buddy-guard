@@ -142,6 +142,67 @@ export function extractCleanBase64(input: string): string {
 }
 
 /**
+ * Helper function to execute Groq API completion with automatic fallback retry
+ * if response_format: { type: "json_object" } triggers a 400 json_validate_failed error.
+ */
+async function executeGroqCompletion(
+  apiKey: string,
+  payload: any
+): Promise<any> {
+  const response = await fetch(GROQ_API_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.warn(`Groq API returned HTTP ${response.status}:`, errorText);
+
+    // Automatic fallback retry if response_format: { type: "json_object" } triggered a 400 json_validate_failed
+    if (response.status === 400 && payload.response_format && errorText.includes("json_validate_failed")) {
+      console.warn("Groq JSON validator rejected request. Retrying completion without strict response_format constraint...");
+      const fallbackPayload = { ...payload };
+      delete fallbackPayload.response_format;
+
+      const retryResponse = await fetch(GROQ_API_URL, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(fallbackPayload),
+      });
+
+      if (!retryResponse.ok) {
+        const retryErrorText = await retryResponse.text();
+        throw new Error(`Groq API request failed (${retryResponse.status}): ${cleanGroqErrorMessage(retryErrorText)}`);
+      }
+      return await retryResponse.json();
+    }
+
+    throw new Error(`Groq API request failed (${response.status}): ${cleanGroqErrorMessage(errorText)}`);
+  }
+
+  return await response.json();
+}
+
+function cleanGroqErrorMessage(rawText: string): string {
+  try {
+    const parsed = JSON.parse(rawText);
+    if (parsed?.error?.message) {
+      return parsed.error.message;
+    }
+  } catch {
+    // ignore
+  }
+  return rawText.slice(0, 300);
+}
+
+/**
  * Analyzes food item using Groq's OpenAI-compatible chat completions endpoint.
  * Uses qwen/qwen3.6-27b for vision (camera image scans) and llama-3.3-70b-versatile for text-only dish searches.
  */
@@ -158,39 +219,12 @@ export async function analyzeFoodWithGroq(
     rawInput.startsWith("https://") ||
     (rawInput.length > 100 && !rawInput.includes(" "));
 
+  // Enforce qwen/qwen3.6-27b for image inputs
   const model = isImage ? GROQ_VISION_MODEL : GROQ_TEXT_MODEL;
 
   const dishName = isImage ? "Scanned Food Dish" : rawInput || "Food Item";
   const userRestrictions = options.restrictions || [];
   const userNotes = options.customNotes || "None";
-
-  const systemPrompt = `You are NutriGuard's specialized clinical nutritionist and dietary safety AI.
-Analyze the requested food dish: '${dishName}'.
-User Dietary Restrictions & Allergies: [${userRestrictions.join(", ")}]
-Custom Notes/Medical Conditions: [${userNotes}]
-
-IMPORTANT ALLERGEN FLAGGING RULES:
-- ONLY flag an ingredient in 'detected_allergens' if it directly violates one of the user's explicitly provided restrictions or custom allergy notes.
-- If the user has provided NO dietary restrictions (userRestrictions is empty) and NO custom notes, 'detected_allergens' MUST BE AN EMPTY ARRAY [] regardless of what standard allergens are present in the dish.
-
-You MUST evaluate the dish and respond STRICTLY in valid JSON format matching this schema:
-{
-  "dish_name": "${dishName}",
-  "safety_status": "SAFE" | "CAUTION" | "AVOID",
-  "summary": "Inspection summary explaining safety or cross-contamination risks.",
-  "server_question": "One concise, critical question the user should ask their server before ordering.",
-  "make_it_safe_instructions": ["Step 1...", "Step 2..."],
-  "nutrition": {
-    "calories": number,
-    "protein_g": number,
-    "carbs_g": number,
-    "fats_g": number,
-    "fiber_g": number,
-    "sugar_g": number,
-    "sodium_mg": number
-  },
-  "detected_allergens": ["Allergen1", "Allergen2"]
-}`;
 
   let messages: any[];
 
@@ -201,6 +235,74 @@ You MUST evaluate the dish and respond STRICTLY in valid JSON format matching th
         ? rawInput
         : `data:image/jpeg;base64,${cleanBase64}`;
 
+    const systemPrompt = `You are NutriGuard's specialized clinical nutritionist and dietary vision AI.
+Inspect the food image provided in this request carefully.
+
+User Dietary Restrictions & Allergies: [${userRestrictions.join(", ")}]
+Custom Medical Notes & Conditions: [${userNotes}]
+
+### Instructions:
+1. Identify the primary dish and key visible ingredients in the picture.
+2. Cross-reference the dish's typical preparation and ingredients against the user's explicit restrictions and notes.
+3. Determine safety status strictly relative to user inputs:
+   - "SAFE": Dish presents no clear match or high cross-contamination risk with user allergies.
+   - "CAUTION": Dish contains or likely contacts a user restriction, or has common cross-contamination risks.
+   - "AVOID": Dish directly contains a flagged restriction/allergen.
+4. ONLY populate 'flagged_ingredients' if a detected ingredient explicitly violates one of the user's provided restrictions/notes. If the user provided NO restrictions, 'flagged_ingredients' MUST BE AN EMPTY ARRAY [].
+5. Provide standard non-zero nutritional estimations for the portion shown in the picture.
+
+You MUST respond strictly in valid, raw JSON (no markdown backticks, no markdown formatting, no conversational text before or after).
+
+### Required JSON Schema:
+{
+  "dish_name": "${dishName}",
+  "safety_status": "SAFE",
+  "summary": "Detailed visual and safety assessment explaining ingredients seen and cross-contamination risks.",
+  "server_question": "One concise, critical question the user should ask their server before eating/ordering this.",
+  "make_it_safe_instructions": [
+    "Clear, actionable instruction for preparation modification or server inquiry."
+  ],
+  "nutrition": {
+    "calories": 450,
+    "protein_g": 25,
+    "carbs_g": 35,
+    "fats_g": 18,
+    "fiber_g": 5,
+    "sugar_g": 4,
+    "sodium_mg": 520
+  },
+  "flagged_ingredients": [],
+  "detected_allergens": []
+}`;
+
+    const visionUserPrompt = `You are NutriGuard's specialized clinical nutritionist AI. Inspect the provided food image.
+User Restrictions: [${userRestrictions.join(", ")}]
+User Custom Notes: [${userNotes}]
+
+Evaluate dish safety and nutrition. Respond STRICTLY in plain, raw JSON format matching:
+{
+  "dish_name": "${dishName}",
+  "safety_status": "SAFE",
+  "summary": "Visual inspection summary",
+  "server_question": "Question for server",
+  "make_it_safe_instructions": ["Modification instruction"],
+  "nutrition": {
+    "calories": 450,
+    "protein_g": 25,
+    "carbs_g": 35,
+    "fats_g": 18,
+    "fiber_g": 5,
+    "sugar_g": 4,
+    "sodium_mg": 520
+  },
+  "flagged_ingredients": [],
+  "detected_allergens": []
+}
+
+Rules:
+- 'flagged_ingredients' MUST be empty [] if userRestrictions and userNotes are empty.
+- All nutrition values must be estimated non-zero numbers.`;
+
     messages = [
       { role: "system", content: systemPrompt },
       {
@@ -208,7 +310,7 @@ You MUST evaluate the dish and respond STRICTLY in valid JSON format matching th
         content: [
           {
             type: "text",
-            text: `Analyze the food dish in this image according to the system prompt guidelines and respond in valid JSON.`,
+            text: visionUserPrompt,
           },
           {
             type: "image_url",
@@ -220,6 +322,34 @@ You MUST evaluate the dish and respond STRICTLY in valid JSON format matching th
       },
     ];
   } else {
+    const systemPrompt = `You are NutriGuard's specialized clinical nutritionist and dietary safety AI.
+Analyze the requested food dish: '${dishName}'.
+User Dietary Restrictions & Allergies: [${userRestrictions.join(", ")}]
+Custom Notes/Medical Conditions: [${userNotes}]
+
+IMPORTANT ALLERGEN FLAGGING RULES:
+- ONLY flag an ingredient in 'detected_allergens' if it directly violates one of the user's explicitly provided restrictions or custom allergy notes.
+- If the user has provided NO dietary restrictions (userRestrictions is empty) and NO custom notes, 'detected_allergens' MUST BE AN EMPTY ARRAY [] regardless of what standard allergens are present in the dish.
+
+You MUST evaluate the dish and respond STRICTLY in valid JSON format matching this schema:
+{
+  "dish_name": "${dishName}",
+  "safety_status": "SAFE",
+  "summary": "Inspection summary explaining safety or cross-contamination risks.",
+  "server_question": "One concise, critical question the user should ask their server before ordering.",
+  "make_it_safe_instructions": ["Step 1..."],
+  "nutrition": {
+    "calories": 450,
+    "protein_g": 25,
+    "carbs_g": 35,
+    "fats_g": 18,
+    "fiber_g": 5,
+    "sugar_g": 4,
+    "sodium_mg": 520
+  },
+  "detected_allergens": []
+}`;
+
     messages = [
       { role: "system", content: systemPrompt },
       {
@@ -237,22 +367,7 @@ You MUST evaluate the dish and respond STRICTLY in valid JSON format matching th
   };
 
   try {
-    const response = await fetch(GROQ_API_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Groq API Error Response:", response.status, errorText);
-      throw new Error(`Groq API request failed (${response.status}): ${errorText}`);
-    }
-
-    const resData = await response.json();
+    const resData = await executeGroqCompletion(apiKey, payload);
     const rawContent = resData?.choices?.[0]?.message?.content;
 
     if (!rawContent) {
@@ -268,7 +383,7 @@ You MUST evaluate the dish and respond STRICTLY in valid JSON format matching th
       ? (parsed.safety_status || parsed.safety_level)
       : "SAFE";
 
-    const detected_allergens = Array.isArray(parsed.detected_allergens)
+    const detected_allergens = Array.isArray(parsed.detected_allergens) && parsed.detected_allergens.length > 0
       ? parsed.detected_allergens
       : Array.isArray(parsed.flagged_ingredients)
       ? parsed.flagged_ingredients
@@ -287,13 +402,13 @@ You MUST evaluate the dish and respond STRICTLY in valid JSON format matching th
       server_question: parsed.server_question || parsed.waiter_question || "Ask your server to verify ingredients.",
       make_it_safe_instructions,
       nutrition: {
-        calories: typeof n.calories === "number" ? n.calories : (typeof parsed.calories === "number" ? parsed.calories : null),
-        protein_g: typeof n.protein_g === "number" ? n.protein_g : (typeof parsed.protein_g === "number" ? parsed.protein_g : null),
-        carbs_g: typeof n.carbs_g === "number" ? n.carbs_g : (typeof parsed.carbs_g === "number" ? parsed.carbs_g : null),
-        fats_g: typeof n.fats_g === "number" ? n.fats_g : (typeof parsed.fats_g === "number" ? parsed.fats_g : null),
-        fiber_g: typeof n.fiber_g === "number" ? n.fiber_g : (typeof parsed.fiber_g === "number" ? parsed.fiber_g : null),
-        sugar_g: typeof n.sugar_g === "number" ? n.sugar_g : (typeof parsed.sugar_g === "number" ? parsed.sugar_g : null),
-        sodium_mg: typeof n.sodium_mg === "number" ? n.sodium_mg : (typeof parsed.sodium_mg === "number" ? parsed.sodium_mg : null),
+        calories: typeof n.calories === "number" ? n.calories : (typeof parsed.calories === "number" ? parsed.calories : 350),
+        protein_g: typeof n.protein_g === "number" ? n.protein_g : (typeof parsed.protein_g === "number" ? parsed.protein_g : 15),
+        carbs_g: typeof n.carbs_g === "number" ? n.carbs_g : (typeof parsed.carbs_g === "number" ? parsed.carbs_g : 30),
+        fats_g: typeof n.fats_g === "number" ? n.fats_g : (typeof parsed.fats_g === "number" ? parsed.fats_g : 12),
+        fiber_g: typeof n.fiber_g === "number" ? n.fiber_g : (typeof parsed.fiber_g === "number" ? parsed.fiber_g : 4),
+        sugar_g: typeof n.sugar_g === "number" ? n.sugar_g : (typeof parsed.sugar_g === "number" ? parsed.sugar_g : 5),
+        sodium_mg: typeof n.sodium_mg === "number" ? n.sodium_mg : (typeof parsed.sodium_mg === "number" ? parsed.sodium_mg : 450),
       },
       detected_allergens,
     };
@@ -334,28 +449,16 @@ Provide concrete, highly practical instructions for ordering safely. Return JSON
 `;
 
   try {
-    const response = await fetch(GROQ_API_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: GROQ_TEXT_MODEL,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: promptText.trim() },
-        ],
-        temperature: 0.2,
-        response_format: { type: "json_object" },
-      }),
+    const resData = await executeGroqCompletion(apiKey, {
+      model: GROQ_TEXT_MODEL,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: promptText.trim() },
+      ],
+      temperature: 0.2,
+      response_format: { type: "json_object" },
     });
 
-    if (!response.ok) {
-      throw new Error(`Groq API request failed with status ${response.status}`);
-    }
-
-    const resData = await response.json();
     const rawContent = resData?.choices?.[0]?.message?.content;
     if (!rawContent) throw new Error("Empty response from Groq AI service.");
 
@@ -390,7 +493,7 @@ export async function analyzeBatchMenuWithGroq(options: {
       ? rawImage
       : `data:image/jpeg;base64,${cleanBase64}`;
 
-  const systemPrompt = "You are a nutritional AI. Respond strictly in valid JSON format.";
+  const systemPrompt = "You are NutriGuard's Instant Allergen Radar AI. Respond strictly in valid JSON format matching: { \"items\": [ { \"dish_name\": \"Dish Name\", \"safety_level\": \"SAFE\", \"detected_allergens\": [], \"brief_summary\": \"Summary\" } ] }";
   const promptText = `
 You are NutriGuard's Instant Allergen Radar.
 Analyze the provided menu image and extract ALL distinct dishes visible on the menu page.
@@ -400,40 +503,28 @@ User custom notes: ${options.customNotes || "None"}
 
 Return a JSON object containing an "items" array where each object has:
 - dish_name: string
-- safety_level: "SAFE" | "CAUTION" | "AVOID"
+- safety_level: "SAFE", "CAUTION", or "AVOID"
 - detected_allergens: array of strings
 - brief_summary: 1 sentence summary
 `;
 
   try {
-    const response = await fetch(GROQ_API_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: GROQ_VISION_MODEL,
-        messages: [
-          { role: "system", content: systemPrompt },
-          {
-            role: "user",
-            content: [
-              { type: "text", text: promptText.trim() },
-              { type: "image_url", image_url: { url: imageUrl } },
-            ],
-          },
-        ],
-        temperature: 0.2,
-        response_format: { type: "json_object" },
-      }),
+    const resData = await executeGroqCompletion(apiKey, {
+      model: GROQ_VISION_MODEL,
+      messages: [
+        { role: "system", content: systemPrompt },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: promptText.trim() },
+            { type: "image_url", image_url: { url: imageUrl } },
+          ],
+        },
+      ],
+      temperature: 0.2,
+      response_format: { type: "json_object" },
     });
 
-    if (!response.ok) {
-      throw new Error(`Groq API request failed with status ${response.status}`);
-    }
-
-    const resData = await response.json();
     const rawContent = resData?.choices?.[0]?.message?.content;
     if (!rawContent) throw new Error("Empty response from Groq AI service.");
 
