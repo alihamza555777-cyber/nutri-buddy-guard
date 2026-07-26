@@ -151,6 +151,18 @@ async function executeGroqCompletion(
   return await response.json();
 }
 
+function cleanGroqErrorMessage(rawText: string): string {
+  try {
+    const parsed = JSON.parse(rawText);
+    if (parsed?.error?.message) {
+      return parsed.error.message;
+    }
+  } catch {
+    // ignore
+  }
+  return rawText ? rawText.slice(0, 300) : "Unknown AI error.";
+}
+
 export interface GroqFoodAnalysisResult {
   dish_name: string;
   safety_status: "SAFE" | "CAUTION" | "AVOID";
