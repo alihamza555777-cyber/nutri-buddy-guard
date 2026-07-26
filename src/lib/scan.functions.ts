@@ -99,6 +99,9 @@ export const saveScan = createServerFn({ method: "POST" })
   .validator((input: unknown) => SaveScanSchema.parse(input))
   .handler(async ({ data, context }) => {
     const user = context.user;
+    if (!user || !context.isAuthenticated) {
+      throw new Error("Unauthorized: Login required to save scan.");
+    }
     const { error } = await context.supabase.from("scan_history").insert({
       user_id: user.id,
       dish_name: data.result.dish_name,

@@ -93,9 +93,9 @@ export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server
         }
       );
 
-      const { data, error } = await supabase.auth.getClaims(token);
-      if (error || !data?.claims?.sub) {
-        console.warn('[Supabase Auth] Claim verification failed, returning guest context:', error?.message);
+      const { data, error } = await supabase.auth.getUser(token);
+      if (error || !data?.user) {
+        console.warn('[Supabase Auth] User verification failed, returning guest context:', error?.message);
         return next({
           context: {
             supabase,
@@ -110,9 +110,9 @@ export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server
       return next({
         context: {
           supabase,
-          user: { id: data.claims.sub },
-          userId: data.claims.sub,
-          claims: data.claims,
+          user: data.user as any,
+          userId: data.user.id,
+          claims: data.user.app_metadata,
           isAuthenticated: true,
         },
       });
@@ -192,8 +192,8 @@ export const optionalSupabaseAuth = createMiddleware({ type: 'function' }).serve
         }
       );
 
-      const { data, error } = await supabase.auth.getClaims(token);
-      if (error || !data?.claims?.sub) {
+      const { data, error } = await supabase.auth.getUser(token);
+      if (error || !data?.user) {
         console.warn('[Supabase Auth] Token claim verification failed for optional auth:', error?.message);
         return next({
           context: {
@@ -208,9 +208,9 @@ export const optionalSupabaseAuth = createMiddleware({ type: 'function' }).serve
       return next({
         context: {
           supabase,
-          user: { id: data.claims.sub },
-          userId: data.claims.sub,
-          claims: data.claims,
+          user: data.user as any,
+          userId: data.user.id,
+          claims: data.user.app_metadata,
           isAuthenticated: true,
         },
       });
