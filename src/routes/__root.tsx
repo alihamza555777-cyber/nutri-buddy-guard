@@ -17,6 +17,7 @@ import { Leaf, Menu, X, Scan, ScanLine, History, User as UserIcon, UtensilsCross
 import { DigitalWaiterCardModal } from "@/components/DigitalWaiterCardModal";
 import { Toaster } from "@/components/ui/sonner";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { useDailyReset } from "@/hooks/useDailyReset";
 
 function NotFoundComponent() {
   return (
@@ -123,6 +124,7 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const router = useRouter();
+  useDailyReset();
   const [user, setUser] = useState<User | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isWaiterCardOpen, setIsWaiterCardOpen] = useState(false);
