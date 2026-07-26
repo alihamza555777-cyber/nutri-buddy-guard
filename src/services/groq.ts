@@ -275,7 +275,7 @@ export function isGroqConfigured(): boolean {
 
 /**
  * Robust helper function to sanitize and parse AI JSON responses,
- * stripping <think>...</think> reasoning blocks and markdown code fences.
+ * stripping <think>...</think> reasoning blocks and markdown code fences with fallback extraction.
  */
 export function parseAIJsonResponse(rawText: string): any {
   if (!rawText) throw new Error("Empty response received from AI model.");
@@ -290,25 +290,34 @@ export function parseAIJsonResponse(rawText: string): any {
     .replace(/```/g, "")
     .trim();
 
-  // Extract strictly between first '{' and last '}' (or '[' and ']')
-  const firstCurly = cleaned.indexOf("{");
-  const lastCurly = cleaned.lastIndexOf("}");
-  if (firstCurly !== -1 && lastCurly !== -1 && lastCurly > firstCurly) {
-    cleaned = cleaned.substring(firstCurly, lastCurly + 1);
-  } else {
+  try {
+    return JSON.parse(cleaned);
+  } catch (err) {
+    // Fallback 1: try to extract substring between first '{' and last '}'
+    const firstBrace = cleaned.indexOf("{");
+    const lastBrace = cleaned.lastIndexOf("}");
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      const jsonSubstr = cleaned.substring(firstBrace, lastBrace + 1);
+      try {
+        return JSON.parse(jsonSubstr);
+      } catch (e) {
+        // fallback failed
+      }
+    }
+
+    // Fallback 2: try to extract substring between first '[' and last ']'
     const firstSquare = cleaned.indexOf("[");
     const lastSquare = cleaned.lastIndexOf("]");
     if (firstSquare !== -1 && lastSquare !== -1 && lastSquare > firstSquare) {
-      cleaned = cleaned.substring(firstSquare, lastSquare + 1);
+      const jsonSubstr = cleaned.substring(firstSquare, lastSquare + 1);
+      try {
+        return JSON.parse(jsonSubstr);
+      } catch (e) {
+        // fallback failed
+      }
     }
-  }
 
-  cleaned = cleaned.trim();
-
-  try {
-    return JSON.parse(cleaned);
-  } catch (error) {
-    console.error("Failed to parse AI JSON. Cleaned text was:", cleaned);
+    console.error("Unrecoverable malformed AI response:", rawText);
     throw new Error("The AI returned a malformed response. Please try scanning again.");
   }
 }
