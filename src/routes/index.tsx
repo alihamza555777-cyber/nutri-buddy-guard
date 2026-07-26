@@ -192,12 +192,13 @@ function HomePage() {
       }
 
       // ── STEP 3: Build payload matching scan_history.Insert exactly ──
-      const n = scanResult.nutrition || ({} as any);
+      const safetyVal = String(scanResult.safety_level || (scanResult as any).safety_status || "SAFE");
       const payload = {
         user_id: verifiedUserId,
         dish_name: String(scanResult.dish_name || "Unknown Dish"),
         input_type: String(inputType),
-        safety_level: String(scanResult.safety_level || "SAFE"),
+        safety_level: safetyVal,
+        safety_status: safetyVal,
         calories: typeof scanResult.calories === "number" ? scanResult.calories : (typeof n.calories === "number" ? n.calories : null),
         protein_g: typeof scanResult.protein_g === "number" ? scanResult.protein_g : (typeof n.protein_g === "number" ? n.protein_g : null),
         carbs_g: typeof scanResult.carbs_g === "number" ? scanResult.carbs_g : (typeof n.carbs_g === "number" ? n.carbs_g : null),

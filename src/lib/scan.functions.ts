@@ -102,10 +102,12 @@ export const saveScan = createServerFn({ method: "POST" })
     if (!user || !context.isAuthenticated) {
       throw new Error("Unauthorized: Login required to save scan.");
     }
+    const safetyVal = data.result.safety_level || (data.result as any).safety_status || "SAFE";
     const { error } = await context.supabase.from("scan_history").insert({
       user_id: user.id,
       dish_name: data.result.dish_name,
-      safety_level: data.result.safety_level,
+      safety_level: safetyVal,
+      safety_status: safetyVal,
       calories: data.result.calories,
       protein_g: data.result.protein_g,
       carbs_g: data.result.carbs_g,
