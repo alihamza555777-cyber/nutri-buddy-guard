@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import type { QueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 export const LAST_ACTIVE_DATE_KEY = "nutriguard_last_active_date";
@@ -7,11 +7,13 @@ export const LAST_ACTIVE_DATE_KEY = "nutriguard_last_active_date";
 /**
  * Custom React hook that monitors calendar day transitions (12:00 AM midnight local time)
  * and automatically triggers a daily nutrition budget reset notification and query refresh.
+ * Safely executes inside useEffect to guarantee SSR compatibility.
  */
-export function useDailyReset() {
-  const queryClient = useQueryClient();
-
+export function useDailyReset(queryClient?: QueryClient) {
   useEffect(() => {
+    // Ensure this runs only on browser client
+    if (typeof window === "undefined" || !window.localStorage) return;
+
     function checkAndTriggerReset() {
       try {
         const now = new Date();
@@ -20,8 +22,10 @@ export function useDailyReset() {
 
         if (lastActiveDate && lastActiveDate !== todayStr) {
           // A new calendar day has started past 12:00 AM local time!
-          queryClient.invalidateQueries({ queryKey: ["today-summary"] });
-          queryClient.invalidateQueries({ queryKey: ["scan-history"] });
+          if (queryClient) {
+            queryClient.invalidateQueries({ queryKey: ["today-summary"] });
+            queryClient.invalidateQueries({ queryKey: ["scan-history"] });
+          }
           toast.info("New day detected! Your daily nutrition budget has been reset.", {
             description: "Food scans from today will populate your fresh daily budget.",
           });

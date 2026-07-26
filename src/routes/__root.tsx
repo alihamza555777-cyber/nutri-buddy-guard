@@ -124,7 +124,7 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const router = useRouter();
-  useDailyReset();
+  useDailyReset(queryClient);
   const [user, setUser] = useState<User | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isWaiterCardOpen, setIsWaiterCardOpen] = useState(false);
