@@ -26,14 +26,14 @@ function HistoryPage() {
   });
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-10 pb-20 sm:px-6 md:pb-10 lg:px-8">
+    <div className="mx-auto max-w-5xl w-full max-w-full px-4 py-8 pb-28 sm:px-6 md:pb-12 lg:px-8 overflow-x-hidden box-border">
       <div className="mb-8 flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
           <History className="h-5 w-5" />
         </div>
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Scan history</h1>
-          <p className="text-sm text-muted-foreground">All your past food inspections in one place.</p>
+        <div className="min-w-0 flex-1">
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground break-words">Scan history</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">All your past food inspections in one place.</p>
         </div>
       </div>
 
@@ -42,29 +42,29 @@ function HistoryPage() {
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       ) : isError ? (
-        <div className="rounded-3xl border border-danger/20 bg-danger/5 p-8 text-center sm:p-12">
+        <div className="rounded-3xl border border-danger/20 bg-danger/5 p-6 sm:p-12 text-center overflow-hidden">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-danger/10 text-danger">
             <AlertTriangle className="h-6 w-6" />
           </div>
           <h3 className="mt-4 text-lg font-semibold text-foreground">Failed to load scan history</h3>
-          <p className="mt-1.5 text-sm text-muted-foreground max-w-md mx-auto">
+          <p className="mt-1.5 text-xs sm:text-sm text-muted-foreground max-w-md mx-auto">
             {error instanceof Error ? error.message : "A database or connection issue occurred while fetching your history."}
           </p>
           <button
             type="button"
             onClick={() => refetch()}
-            className="mt-5 inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+            className="mt-5 inline-flex min-h-[44px] items-center justify-center gap-2 rounded-full bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground transition-all duration-150 hover:bg-primary/90 active:scale-95 cursor-pointer"
           >
             <RefreshCw className="h-4 w-4" />
             Try again
           </button>
         </div>
       ) : !scans?.length ? (
-        <div className="rounded-3xl border border-border bg-card p-12 text-center">
-          <p className="text-muted-foreground">No scans yet.</p>
+        <div className="rounded-3xl border border-border bg-card p-8 sm:p-12 text-center overflow-hidden">
+          <p className="text-sm text-muted-foreground">No scans yet.</p>
           <Link
             to="/"
-            className="mt-4 inline-flex items-center justify-center rounded-full bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            className="mt-4 inline-flex min-h-[44px] items-center justify-center rounded-full bg-primary px-6 py-2.5 text-sm font-medium text-primary-foreground transition-all duration-150 hover:bg-primary/90 active:scale-95"
           >
             Scan your first dish
           </Link>
@@ -74,12 +74,12 @@ function HistoryPage() {
           {scans.map((scan) => (
             <div
               key={scan.id}
-              className="rounded-3xl border border-border bg-card p-5 shadow-sm transition-colors hover:bg-accent/20 sm:p-6"
+              className="w-full max-w-full rounded-3xl border border-border bg-card p-4 sm:p-6 shadow-sm transition-all duration-150 hover:bg-accent/20 overflow-hidden"
             >
-              <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-                <div>
-                  <h3 className="text-lg font-semibold text-card-foreground">{scan.dish_name}</h3>
-                  <p className="text-sm text-muted-foreground">
+              <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-base sm:text-lg font-semibold text-card-foreground break-words">{scan.dish_name}</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
                     {scan.created_at ? format(new Date(scan.created_at), "MMM d, yyyy h:mm a") : "—"} ·{" "}
                     {scan.input_type === "image" ? "Photo scan" : "Text scan"}
                   </p>
@@ -87,7 +87,7 @@ function HistoryPage() {
                 <SafetyBadge level={scan.safety_level as "SAFE" | "CAUTION" | "AVOID"} />
               </div>
 
-              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+              <div className="mt-4 grid grid-cols-2 gap-2.5 sm:gap-3 sm:grid-cols-4 lg:grid-cols-7">
                 <Nutrient label="Calories" value={scan.calories} unit="" />
                 <Nutrient label="Protein" value={scan.protein_g} unit="g" />
                 <Nutrient label="Carbs" value={scan.carbs_g} unit="g" />
@@ -102,7 +102,7 @@ function HistoryPage() {
                   {scan.flagged_ingredients.map((ing) => (
                     <span
                       key={ing}
-                      className="rounded-full bg-danger/10 px-2.5 py-1 text-xs font-medium text-danger"
+                      className="rounded-full bg-danger/10 px-3 py-1 text-xs font-medium text-danger"
                     >
                       {ing}
                     </span>
@@ -111,8 +111,8 @@ function HistoryPage() {
               )}
 
               {scan.waiter_question && (
-                <p className="mt-4 text-sm text-muted-foreground">
-                  <span className="font-medium text-foreground">Ask your server:</span> {scan.waiter_question}
+                <p className="mt-4 text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                  <span className="font-semibold text-foreground">Ask your server:</span> {scan.waiter_question}
                 </p>
               )}
             </div>

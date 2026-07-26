@@ -29,24 +29,24 @@ export function DailyBudgetDashboard({ userId }: DailyBudgetDashboardProps) {
 
   if (!userId) {
     return (
-      <div className="rounded-3xl border border-slate-200 bg-slate-50/70 p-6 sm:p-8">
+      <div className="w-full max-w-full rounded-3xl border border-slate-200 bg-slate-50/70 p-5 sm:p-8 overflow-hidden dark:border-slate-800 dark:bg-slate-900/50">
         <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400">
               <TrendingUp className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">
+              <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100">
                 Daily Budget Dashboard
               </h3>
-              <p className="text-xs text-slate-600 dark:text-slate-400">
+              <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
                 Sign in to automatically track daily calories, macros, and allergen safety budgets.
               </p>
             </div>
           </div>
           <Link
             to="/auth"
-            className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700"
+            className="inline-flex min-h-[44px] w-full sm:w-auto items-center justify-center gap-1.5 rounded-full bg-emerald-600 px-5 py-2.5 text-xs sm:text-sm font-semibold text-white transition-all duration-150 hover:bg-emerald-700 active:scale-95 shadow-xs"
           >
             Sign in to start tracking
           </Link>
@@ -59,24 +59,24 @@ export function DailyBudgetDashboard({ userId }: DailyBudgetDashboardProps) {
     return (
       <div className="flex h-44 items-center justify-center rounded-3xl border border-slate-200 bg-card p-6">
         <Loader2 className="h-7 w-7 animate-spin text-emerald-600" />
-        <span className="ml-3 text-sm font-medium text-slate-600">Loading daily budget summary…</span>
+        <span className="ml-3 text-xs sm:text-sm font-medium text-slate-600">Loading daily budget summary…</span>
       </div>
     );
   }
 
   if (!summary || summary.totalScans === 0) {
     return (
-      <div className="rounded-3xl border border-slate-200 bg-card p-6 shadow-sm sm:p-8">
-        <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+      <div className="w-full max-w-full rounded-3xl border border-slate-200 bg-card p-5 sm:p-8 shadow-sm overflow-hidden">
+        <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400">
               <TrendingUp className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">
+              <h3 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100">
                 Today's Nutrition & Allergen Budget
               </h3>
-              <p className="text-xs text-slate-600 dark:text-slate-400">
+              <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
                 No food scans recorded today yet.
               </p>
             </div>
@@ -89,7 +89,7 @@ export function DailyBudgetDashboard({ userId }: DailyBudgetDashboardProps) {
 
         <div className="mt-5 rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 p-5 text-center dark:border-slate-800 dark:bg-slate-900/50">
           <PieChart className="mx-auto h-8 w-8 text-slate-400" />
-          <p className="mt-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+          <p className="mt-2 text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300">
             Scan your meal or dish below to start building today's budget summary!
           </p>
         </div>

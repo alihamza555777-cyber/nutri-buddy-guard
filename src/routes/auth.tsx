@@ -117,19 +117,19 @@ function AuthPage() {
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center px-4 py-12 pb-20 md:pb-12">
-      <div className="w-full max-w-md rounded-3xl border border-border bg-card p-8 shadow-sm">
+    <div className="flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center w-full max-w-full px-4 py-8 pb-28 md:pb-12 box-border">
+      <div className="w-full max-w-md rounded-3xl border border-border bg-card p-6 sm:p-8 shadow-sm overflow-hidden">
         <div className="mb-6 flex items-center justify-center gap-2">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
             <Leaf className="h-6 w-6" />
           </div>
           <span className="text-2xl font-bold text-card-foreground">NutriGuard</span>
         </div>
 
-        <h1 className="text-center text-2xl font-semibold tracking-tight text-card-foreground">
+        <h1 className="text-center text-xl sm:text-2xl font-semibold tracking-tight text-card-foreground">
           {mode === "signin" ? "Welcome back" : "Create your account"}
         </h1>
-        <p className="mt-2 text-center text-sm text-muted-foreground">
+        <p className="mt-2 text-center text-xs sm:text-sm text-muted-foreground">
           {mode === "signin"
             ? "Sign in to save scans and manage your dietary profile."
             : "Start eating safer with personalized AI food checks."}
@@ -145,7 +145,7 @@ function AuthPage() {
                 <span className="text-xs text-muted-foreground font-mono">{fullName.length}/50</span>
               </div>
               <div className="relative">
-                <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <User className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <input
                   id="fullName"
                   type="text"
@@ -153,7 +153,7 @@ function AuthPage() {
                   maxLength={50}
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  className="w-full rounded-2xl border border-input bg-background py-2.5 pl-10 pr-4 text-sm text-foreground outline-none ring-ring focus:ring-2"
+                  className="w-full min-h-[44px] rounded-2xl border border-input bg-background py-3 pl-10 pr-4 text-sm sm:text-base text-foreground outline-none ring-ring focus:ring-2 transition-all"
                   placeholder="Jane Doe"
                 />
               </div>
@@ -169,7 +169,7 @@ function AuthPage() {
               <span className="text-xs text-muted-foreground font-mono">{email.length}/254</span>
             </div>
             <div className="relative">
-              <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Mail className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
                 id="email"
                 type="email"
@@ -177,7 +177,7 @@ function AuthPage() {
                 maxLength={254}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full rounded-2xl border border-input bg-background py-2.5 pl-10 pr-4 text-sm text-foreground outline-none ring-ring focus:ring-2"
+                className="w-full min-h-[44px] rounded-2xl border border-input bg-background py-3 pl-10 pr-4 text-sm sm:text-base text-foreground outline-none ring-ring focus:ring-2 transition-all"
                 placeholder="you@example.com"
               />
             </div>
@@ -192,7 +192,7 @@ function AuthPage() {
               <span className="text-xs text-muted-foreground font-mono">{password.length}/14</span>
             </div>
             <div className="relative">
-              <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Lock className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
                 id="password"
                 type={showPassword ? "text" : "password"}
@@ -201,13 +201,13 @@ function AuthPage() {
                 maxLength={14}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-2xl border border-input bg-background py-2.5 pl-10 pr-10 text-sm text-foreground outline-none ring-ring focus:ring-2"
+                className="w-full min-h-[44px] rounded-2xl border border-input bg-background py-3 pl-10 pr-10 text-sm sm:text-base text-foreground outline-none ring-ring focus:ring-2 transition-all"
                 placeholder="••••••••"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword((v) => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground active:scale-90 transition-all"
                 aria-label={showPassword ? "Hide password" : "Show password"}
               >
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -217,16 +217,16 @@ function AuthPage() {
           </div>
 
           {error && (
-            <div className="rounded-xl bg-danger/10 p-3 text-sm text-danger">{error}</div>
+            <div className="rounded-xl bg-danger/10 p-3 text-sm font-medium text-danger">{error}</div>
           )}
           {message && (
-            <div className="rounded-xl bg-success/10 p-3 text-sm text-success">{message}</div>
+            <div className="rounded-xl bg-success/10 p-3 text-sm font-medium text-success">{message}</div>
           )}
 
           <button
             type="submit"
             disabled={loading}
-            className="inline-flex w-full items-center justify-center rounded-full bg-primary py-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-70"
+            className="inline-flex min-h-[48px] h-12 w-full items-center justify-center rounded-full bg-primary py-3.5 text-base font-bold text-primary-foreground shadow-sm transition-all duration-150 hover:bg-primary/90 active:scale-95 disabled:opacity-70 cursor-pointer"
           >
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {mode === "signin" ? "Sign in" : "Create account"}

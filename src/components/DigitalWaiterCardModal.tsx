@@ -432,7 +432,7 @@ export function DigitalWaiterCardModal({
             </div>
 
             {/* Custom Allergen Input */}
-            <div className="mt-3 flex items-center gap-2">
+            <div className="mt-3 flex flex-wrap sm:flex-nowrap items-center gap-2 w-full">
               <input
                 type="text"
                 value={customCardInput}
@@ -444,15 +444,15 @@ export function DigitalWaiterCardModal({
                   }
                 }}
                 placeholder="Add custom allergen on the spot (e.g. Mustard, Sulfites)..."
-                className="flex-1 rounded-xl border border-emerald-200 bg-emerald-50/70 px-3.5 py-1.5 text-xs text-slate-800 outline-none ring-emerald-500 focus:ring-2 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-slate-100"
+                className="flex-1 min-w-[180px] w-full min-h-[44px] rounded-full border border-emerald-200 bg-emerald-50/70 px-4 py-2.5 text-xs sm:text-sm text-slate-800 outline-none ring-emerald-500 focus:ring-2 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-slate-100 transition-all"
               />
               <button
                 type="button"
                 onClick={handleAddCustomAllergen}
-                className="inline-flex items-center gap-1 rounded-xl bg-emerald-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs transition hover:bg-emerald-700"
+                className="inline-flex min-h-[44px] h-11 shrink-0 items-center justify-center gap-1.5 rounded-full bg-emerald-600 px-5 text-xs sm:text-sm font-semibold text-white shadow-xs transition-all duration-150 hover:bg-emerald-700 active:scale-95 cursor-pointer"
               >
-                <Plus className="h-3.5 w-3.5" />
-                Add
+                <Plus className="h-4 w-4" />
+                <span>Add</span>
               </button>
             </div>
           </div>

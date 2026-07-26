@@ -248,12 +248,12 @@ function MenuRadarPage() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-10 pb-24 sm:px-6 md:pb-12 lg:px-8">
+    <div className="mx-auto max-w-6xl w-full max-w-full px-4 py-8 pb-28 sm:px-6 md:pb-12 lg:px-8 overflow-x-hidden box-border">
       {/* Back to Home Link */}
       <div className="mb-6">
         <Link
           to="/"
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+          className="inline-flex min-h-[36px] items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 active:scale-95 transition-all dark:text-slate-400 dark:hover:text-white"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
           Back to Single Scanner
@@ -263,11 +263,11 @@ function MenuRadarPage() {
       {/* Hero Header */}
       <div className="rounded-[2rem] bg-gradient-to-br from-emerald-50 via-slate-50 to-white p-6 border border-emerald-100/80 shadow-xs sm:p-10 dark:from-emerald-950/30 dark:via-slate-900 dark:to-slate-950 dark:border-emerald-900/40">
         <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#008000] text-white shadow-sm">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#008000] text-white shadow-sm">
             <ScanLine className="h-6 w-6" />
           </div>
-          <div>
-            <h1 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl dark:text-white">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-slate-900 dark:text-white break-words">
               Instant Menu Allergen Radar
             </h1>
             <p className="mt-1 text-xs font-medium text-slate-600 sm:text-sm dark:text-slate-400">
@@ -282,7 +282,7 @@ function MenuRadarPage() {
       </div>
 
       {/* Scanner Box */}
-      <div className="mt-8 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8 dark:border-slate-800 dark:bg-slate-900">
+      <div className="mt-8 rounded-3xl border border-slate-200 bg-white p-5 sm:p-8 shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
         <form onSubmit={handleBatchScan}>
           {/* Upload Area */}
           <div className="mb-6">
@@ -292,7 +292,7 @@ function MenuRadarPage() {
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="flex w-full flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/60 px-4 py-10 text-center transition-all hover:bg-emerald-50/50 hover:border-emerald-300 dark:border-slate-800 dark:bg-slate-950 dark:hover:bg-slate-900"
+              className="flex w-full flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/60 px-4 py-8 sm:py-10 text-center transition-all hover:bg-emerald-50/50 hover:border-emerald-300 active:scale-[0.99] dark:border-slate-800 dark:bg-slate-950 dark:hover:bg-slate-900 cursor-pointer"
             >
               {imageBase64 ? (
                 <img
@@ -336,7 +336,7 @@ function MenuRadarPage() {
                     key={name}
                     type="button"
                     onClick={() => toggleRestriction(name)}
-                    className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition ${
+                    className={`inline-flex min-h-[38px] items-center justify-center rounded-full px-3.5 py-1.5 text-xs sm:text-sm font-semibold transition-all duration-150 active:scale-95 cursor-pointer ${
                       active
                         ? "bg-[#008000] text-white shadow-xs"
                         : "border border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
@@ -353,13 +353,13 @@ function MenuRadarPage() {
                 .map((name) => (
                   <span
                     key={name}
-                    className="inline-flex items-center gap-1.5 rounded-full bg-[#008000] px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs"
+                    className="inline-flex min-h-[38px] items-center gap-1.5 rounded-full bg-[#008000] px-3.5 py-1.5 text-xs sm:text-sm font-semibold text-white shadow-xs"
                   >
                     <span>{name}</span>
                     <button
                       type="button"
                       onClick={() => removeCustomRestriction(name)}
-                      className="rounded-full p-0.5 transition hover:bg-[#006600]"
+                      className="rounded-full p-1 transition hover:bg-[#006600] active:scale-90 cursor-pointer"
                       title="Remove restriction"
                     >
                       <X className="h-3.5 w-3.5" />
@@ -369,7 +369,7 @@ function MenuRadarPage() {
             </div>
 
             {/* Inline Custom Input */}
-            <div className="mt-3 flex items-center gap-2 max-w-md">
+            <div className="mt-3 flex flex-wrap sm:flex-nowrap items-center gap-2 w-full max-w-md">
               <input
                 type="text"
                 value={customRestrictionInput}
@@ -381,14 +381,14 @@ function MenuRadarPage() {
                   }
                 }}
                 placeholder="Add custom allergy (e.g. Sesame, Mustard)..."
-                className="flex-1 rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs text-slate-900 outline-none ring-[#008000] focus:ring-2 dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                className="flex-1 min-w-[180px] w-full min-h-[44px] rounded-full border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs sm:text-sm text-slate-900 outline-none ring-[#008000] focus:ring-2 dark:border-slate-800 dark:bg-slate-950 dark:text-white transition-all"
               />
               <button
                 type="button"
                 onClick={handleAddCustomRestriction}
-                className="inline-flex h-9 shrink-0 items-center gap-1 rounded-full border border-[#008000]/20 bg-[#008000]/10 px-3.5 text-xs font-semibold text-[#008000] transition-all hover:bg-[#008000]/20"
+                className="inline-flex min-h-[44px] h-11 shrink-0 items-center justify-center gap-1.5 rounded-full border border-[#008000]/20 bg-[#008000]/10 px-5 text-xs sm:text-sm font-bold text-[#008000] transition-all duration-150 hover:bg-[#008000]/20 active:scale-95 cursor-pointer"
               >
-                <Plus className="h-3.5 w-3.5 text-[#008000]" />
+                <Plus className="h-4 w-4 text-[#008000]" />
                 <span>Add Custom</span>
               </button>
             </div>
@@ -405,7 +405,7 @@ function MenuRadarPage() {
               onChange={(e) => handleNotesChange(e.target.value)}
               placeholder="e.g., Severe celiac disease, strict cross-contamination risk"
               rows={2}
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs text-slate-900 outline-none ring-[#008000] focus:ring-2 dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs sm:text-sm text-slate-900 outline-none ring-[#008000] focus:ring-2 dark:border-slate-800 dark:bg-slate-950 dark:text-white transition-all min-h-[80px]"
             />
           </div>
 
@@ -418,7 +418,7 @@ function MenuRadarPage() {
           <button
             type="submit"
             disabled={loading}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#008000] py-3.5 text-sm font-bold text-white shadow-md transition-all hover:bg-[#006600] disabled:opacity-70 sm:w-auto sm:px-10"
+            className="inline-flex min-h-[48px] h-12 w-full sm:w-auto items-center justify-center gap-2 rounded-full bg-[#008000] px-8 py-3.5 text-sm sm:text-base font-bold text-white shadow-md transition-all duration-150 hover:bg-[#006600] active:scale-95 disabled:opacity-70 cursor-pointer"
           >
             {loading ? (
               <>

@@ -254,16 +254,16 @@ function ProfilePage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-10 pb-20 sm:px-6 md:pb-10 lg:px-8">
+    <div className="mx-auto max-w-2xl w-full max-w-full px-4 py-8 pb-28 sm:px-6 md:pb-12 lg:px-8 overflow-x-hidden box-border">
       <div className="mb-8 flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
           <User className="h-5 w-5" />
         </div>
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground break-words">
             {fullName ? `${fullName}'s Profile` : "Profile settings"}
           </h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
             Manage your personal metrics, BMI health status, allergies, and notifications.
           </p>
         </div>
@@ -278,9 +278,9 @@ function ProfilePage() {
         />
 
         {/* Personal & Health Details */}
-        <section className="rounded-3xl border border-border bg-card p-6 shadow-sm sm:p-8">
+        <section className="w-full max-w-full rounded-3xl border border-border bg-card p-5 sm:p-8 shadow-sm overflow-hidden">
           <div className="mb-4 flex items-center gap-2">
-            <HeartPulse className="h-5 w-5 text-primary" />
+            <HeartPulse className="h-5 w-5 text-primary shrink-0" />
             <h2 className="text-lg font-semibold text-card-foreground">Personal Details</h2>
           </div>
           <div className="grid gap-6 sm:grid-cols-2">
@@ -298,7 +298,7 @@ function ProfilePage() {
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 placeholder="e.g., Alex Johnson"
-                className="w-full rounded-2xl border border-input bg-background px-4 py-3 text-foreground outline-none ring-ring focus:ring-2"
+                className="w-full min-h-[44px] rounded-2xl border border-input bg-background px-4 py-3 text-sm sm:text-base text-foreground outline-none ring-ring focus:ring-2 transition-all"
               />
               <p className="mt-1.5 text-xs text-muted-foreground">
                 Max 50 characters (letters, spaces, hyphens, and apostrophes allowed).
@@ -317,7 +317,7 @@ function ProfilePage() {
                 value={age}
                 onChange={(e) => setAge(e.target.value)}
                 placeholder="e.g., 28"
-                className="w-full rounded-2xl border border-input bg-background px-4 py-3 text-foreground outline-none ring-ring focus:ring-2"
+                className="w-full min-h-[44px] rounded-2xl border border-input bg-background px-4 py-3 text-sm sm:text-base text-foreground outline-none ring-ring focus:ring-2 transition-all"
               />
             </div>
 
@@ -334,7 +334,7 @@ function ProfilePage() {
                 value={weightKg}
                 onChange={(e) => setWeightKg(e.target.value)}
                 placeholder="e.g., 70.5"
-                className="w-full rounded-2xl border border-input bg-background px-4 py-3 text-foreground outline-none ring-ring focus:ring-2"
+                className="w-full min-h-[44px] rounded-2xl border border-input bg-background px-4 py-3 text-sm sm:text-base text-foreground outline-none ring-ring focus:ring-2 transition-all"
               />
             </div>
 
@@ -351,7 +351,7 @@ function ProfilePage() {
                 value={heightCm}
                 onChange={(e) => setHeightCm(e.target.value)}
                 placeholder="e.g., 170"
-                className="w-full rounded-2xl border border-input bg-background px-4 py-3 text-foreground outline-none ring-ring focus:ring-2"
+                className="w-full min-h-[44px] rounded-2xl border border-input bg-background px-4 py-3 text-sm sm:text-base text-foreground outline-none ring-ring focus:ring-2 transition-all"
               />
               <p className="mt-1.5 text-xs text-muted-foreground">
                 Defaulted to 170 cm if unspecified — required for accurate BMI calculation.
@@ -360,18 +360,18 @@ function ProfilePage() {
           </div>
         </section>
         {/* Allergies & dietary restrictions */}
-        <section className="rounded-3xl border border-border bg-card p-6 shadow-sm sm:p-8">
+        <section className="w-full max-w-full rounded-3xl border border-border bg-card p-5 sm:p-8 shadow-sm overflow-hidden">
           <h2 className="text-lg font-semibold text-card-foreground">Allergies & dietary restrictions</h2>
-          <p className="text-sm text-muted-foreground">Select all that apply.</p>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">Select all that apply.</p>
           <div className="mt-4 flex flex-wrap gap-2">
             {RESTRICTION_OPTIONS.map((name) => (
               <button
                 key={name}
                 type="button"
                 onClick={() => toggleRestriction(name)}
-                className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+                className={`inline-flex min-h-[38px] items-center justify-center rounded-full px-4 py-2 text-xs sm:text-sm font-medium transition-all duration-150 active:scale-95 cursor-pointer ${
                   restrictions.includes(name)
-                    ? "bg-primary text-primary-foreground"
+                    ? "bg-primary text-primary-foreground shadow-xs"
                     : "border border-input bg-background text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                 }`}
               >
@@ -392,7 +392,7 @@ function ProfilePage() {
                 value={targetCalories}
                 onChange={(e) => setTargetCalories(e.target.value)}
                 placeholder="e.g., 2000"
-                className="w-full rounded-2xl border border-input bg-background px-4 py-3 text-foreground outline-none ring-ring focus:ring-2"
+                className="w-full min-h-[44px] rounded-2xl border border-input bg-background px-4 py-3 text-sm sm:text-base text-foreground outline-none ring-ring focus:ring-2 transition-all"
               />
             </div>
             <div>
@@ -406,7 +406,7 @@ function ProfilePage() {
                 value={targetProtein}
                 onChange={(e) => setTargetProtein(e.target.value)}
                 placeholder="e.g., 150"
-                className="w-full rounded-2xl border border-input bg-background px-4 py-3 text-foreground outline-none ring-ring focus:ring-2"
+                className="w-full min-h-[44px] rounded-2xl border border-input bg-background px-4 py-3 text-sm sm:text-base text-foreground outline-none ring-ring focus:ring-2 transition-all"
               />
             </div>
           </div>
@@ -421,15 +421,15 @@ function ProfilePage() {
               onChange={(e) => setCustomNotes(e.target.value)}
               placeholder="e.g., Sensitive to soy and added sugars"
               rows={3}
-              className="w-full rounded-2xl border border-input bg-background px-4 py-3 text-foreground outline-none ring-ring focus:ring-2"
+              className="w-full rounded-2xl border border-input bg-background px-4 py-3 text-sm text-foreground outline-none ring-ring focus:ring-2 transition-all min-h-[80px]"
             />
           </div>
         </section>
 
         {/* Notification preferences */}
-        <section className="rounded-3xl border border-border bg-card p-6 shadow-sm sm:p-8">
+        <section className="w-full max-w-full rounded-3xl border border-border bg-card p-5 sm:p-8 shadow-sm overflow-hidden">
           <div className="mb-4 flex items-center gap-2">
-            <Bell className="h-5 w-5 text-primary" />
+            <Bell className="h-5 w-5 text-primary shrink-0" />
             <h2 className="text-lg font-semibold text-card-foreground">Notification preferences</h2>
           </div>
           <div className="space-y-3">
@@ -461,12 +461,12 @@ function ProfilePage() {
         </section>
 
         {/* Saved brands */}
-        <section className="rounded-3xl border border-border bg-card p-6 shadow-sm sm:p-8">
+        <section className="w-full max-w-full rounded-3xl border border-border bg-card p-5 sm:p-8 shadow-sm overflow-hidden">
           <div className="mb-2 flex items-center gap-2">
-            <Tag className="h-5 w-5 text-primary" />
+            <Tag className="h-5 w-5 text-primary shrink-0" />
             <h2 className="text-lg font-semibold text-card-foreground">Saved brands</h2>
           </div>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
             Brands you trust or want NutriGuard to recognize when analyzing food.
           </p>
 
@@ -483,12 +483,12 @@ function ProfilePage() {
               }}
               placeholder="Add a brand (e.g., Chobani)"
               maxLength={80}
-              className="flex-1 rounded-2xl border border-input bg-background px-4 py-3 text-foreground outline-none ring-ring focus:ring-2"
+              className="flex-1 min-h-[44px] rounded-2xl border border-input bg-background px-4 py-3 text-sm text-foreground outline-none ring-ring focus:ring-2 transition-all"
             />
             <button
               type="button"
               onClick={addBrand}
-              className="inline-flex items-center justify-center rounded-2xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+              className="inline-flex min-h-[44px] h-11 shrink-0 items-center justify-center rounded-2xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground transition-all duration-150 hover:bg-primary/90 active:scale-95 cursor-pointer"
             >
               <Plus className="h-4 w-4" />
             </button>
@@ -499,13 +499,13 @@ function ProfilePage() {
               {savedBrands.map((brand) => (
                 <span
                   key={brand}
-                  className="inline-flex items-center gap-1 rounded-full bg-accent px-3 py-1.5 text-sm font-medium text-accent-foreground"
+                  className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3.5 py-1.5 text-xs sm:text-sm font-medium text-accent-foreground shadow-xs"
                 >
                   {brand}
                   <button
                     type="button"
                     onClick={() => removeBrand(brand)}
-                    className="rounded-full p-0.5 hover:bg-background/60"
+                    className="rounded-full p-0.5 hover:bg-background/60 active:scale-90 transition-all cursor-pointer"
                     aria-label={`Remove ${brand}`}
                   >
                     <X className="h-3.5 w-3.5" />
@@ -514,7 +514,7 @@ function ProfilePage() {
               ))}
             </div>
           ) : (
-            <p className="mt-4 text-sm text-muted-foreground">No brands saved yet.</p>
+            <p className="mt-4 text-xs sm:text-sm text-muted-foreground">No brands saved yet.</p>
           )}
         </section>
 
@@ -530,7 +530,7 @@ function ProfilePage() {
               type="button"
               onClick={handleSave}
               disabled={mutation.isPending}
-              className="inline-flex items-center justify-center rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-70"
+              className="inline-flex min-h-[48px] h-12 w-full sm:w-auto items-center justify-center rounded-full bg-primary px-8 py-3.5 text-base font-bold text-primary-foreground shadow-md transition-all duration-150 hover:bg-primary/90 active:scale-95 disabled:opacity-70 cursor-pointer"
             >
               {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               <Save className="mr-2 h-4 w-4" />
