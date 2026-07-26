@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { analyzeBatchMenu, type BatchMenuItem } from "@/lib/scan.functions";
 import { getProfile } from "@/lib/profile.functions";
@@ -16,7 +16,6 @@ import {
   X,
   Plus,
   ArrowLeft,
-  UtensilsCrossed,
 } from "lucide-react";
 import { BatchMenuResults } from "@/components/BatchMenuResults";
 import { SafeOrderModal } from "@/components/SafeOrderModal";
@@ -166,46 +165,45 @@ function MenuRadarPage() {
     executeBatchScanWithImage(base64Image);
   }
 
-  function saveGuestState(newRestrictions: string[], newNotes: string) {
+  const saveGuestState = useCallback((newRestrictions: string[], newNotes: string) => {
     try {
       localStorage.setItem(GUEST_RESTRICTIONS_KEY, JSON.stringify(newRestrictions));
       localStorage.setItem(GUEST_NOTES_KEY, newNotes);
     } catch {}
-  }
+  }, []);
 
-  function toggleRestriction(name: string) {
+  const toggleRestriction = useCallback((name: string) => {
     setRestrictions((prev) => {
       const next = prev.includes(name) ? prev.filter((r) => r !== name) : [...prev, name];
       saveGuestState(next, customNotes);
       return next;
     });
-  }
+  }, [customNotes, saveGuestState]);
 
-  function handleAddCustomRestriction() {
+  const handleAddCustomRestriction = useCallback(() => {
     const trimmed = customRestrictionInput.trim();
     if (!trimmed) return;
-    if (!restrictions.includes(trimmed)) {
-      setRestrictions((prev) => {
-        const next = [...prev, trimmed];
-        saveGuestState(next, customNotes);
-        return next;
-      });
-    }
+    setRestrictions((prev) => {
+      if (prev.includes(trimmed)) return prev;
+      const next = [...prev, trimmed];
+      saveGuestState(next, customNotes);
+      return next;
+    });
     setCustomRestrictionInput("");
-  }
+  }, [customRestrictionInput, customNotes, saveGuestState]);
 
-  function removeCustomRestriction(name: string) {
+  const removeCustomRestriction = useCallback((name: string) => {
     setRestrictions((prev) => {
       const next = prev.filter((r) => r !== name);
       saveGuestState(next, customNotes);
       return next;
     });
-  }
+  }, [customNotes, saveGuestState]);
 
-  function handleNotesChange(value: string) {
+  const handleNotesChange = useCallback((value: string) => {
     setCustomNotes(value);
     saveGuestState(restrictions, value);
-  }
+  }, [restrictions, saveGuestState]);
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];

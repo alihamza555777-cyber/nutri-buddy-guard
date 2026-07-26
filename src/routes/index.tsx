@@ -1,12 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import {
   analyzeFood,
   saveScan,
-  analyzeBatchMenu,
   type ScanResult,
-  type BatchMenuItem,
 } from "@/lib/scan.functions";
 import { getProfile } from "@/lib/profile.functions";
 import { supabase } from "@/integrations/supabase/client";
@@ -19,15 +17,12 @@ import {
   Upload,
   AlertTriangle,
   CheckCircle2,
-  XCircle,
   Utensils,
   ChevronRight,
   Leaf,
-  User,
   Sparkles,
   Plus,
   X,
-  FileText,
   AlertCircle,
   ScanLine,
 } from "lucide-react";
@@ -35,7 +30,6 @@ import heroFood from "@/assets/hero-food.png";
 import { SafeOrderModal } from "@/components/SafeOrderModal";
 import { DailyBudgetDashboard } from "@/components/DailyBudgetDashboard";
 import { DigitalWaiterCardModal } from "@/components/DigitalWaiterCardModal";
-import { BatchMenuResults } from "@/components/BatchMenuResults";
 import { WebcamScannerModal } from "@/components/WebcamScannerModal";
 import { CameraViewfinderModal } from "@/components/CameraViewfinderModal";
 import { toast } from "sonner";
@@ -203,6 +197,7 @@ function HomePage() {
         ? resolvedSafetyStatus
         : "CAUTION";
 
+      const n = scanResult.nutrition || (scanResult as any).nutrition || {};
       const payload = {
         user_id: verifiedUserId,
         dish_name: String(scanResult.dish_name || (scanResult as any).dishName || "Unknown Dish"),
@@ -397,44 +392,45 @@ function HomePage() {
     reader.readAsDataURL(file);
   }
 
-  function saveGuestState(newRestrictions: string[], newNotes: string) {
+  const saveGuestState = useCallback((newRestrictions: string[], newNotes: string) => {
     try {
       localStorage.setItem(GUEST_RESTRICTIONS_KEY, JSON.stringify(newRestrictions));
       localStorage.setItem(GUEST_NOTES_KEY, newNotes);
     } catch {}
-  }
+  }, []);
 
-  function toggleRestriction(name: string) {
+  const toggleRestriction = useCallback((name: string) => {
     setRestrictions((prev) => {
       const next = prev.includes(name) ? prev.filter((r) => r !== name) : [...prev, name];
       saveGuestState(next, customNotes);
       return next;
     });
-  }
+  }, [customNotes, saveGuestState]);
 
-  function handleAddCustomRestriction() {
+  const handleAddCustomRestriction = useCallback(() => {
     const trimmed = customRestrictionInput.trim();
     if (!trimmed) return;
-    if (!restrictions.includes(trimmed)) {
-      const next = [...restrictions, trimmed];
-      setRestrictions(next);
+    setRestrictions((prev) => {
+      if (prev.includes(trimmed)) return prev;
+      const next = [...prev, trimmed];
       saveGuestState(next, customNotes);
-    }
+      return next;
+    });
     setCustomRestrictionInput("");
-  }
+  }, [customRestrictionInput, customNotes, saveGuestState]);
 
-  function removeCustomRestriction(name: string) {
+  const removeCustomRestriction = useCallback((name: string) => {
     setRestrictions((prev) => {
       const next = prev.filter((r) => r !== name);
       saveGuestState(next, customNotes);
       return next;
     });
-  }
+  }, [customNotes, saveGuestState]);
 
-  function handleNotesChange(value: string) {
+  const handleNotesChange = useCallback((value: string) => {
     setCustomNotes(value);
     saveGuestState(restrictions, value);
-  }
+  }, [restrictions, saveGuestState]);
 
   return (
     <div className="mx-auto max-w-6xl w-full max-w-full px-4 py-8 pb-28 sm:px-6 md:pb-12 lg:px-8 overflow-x-hidden box-border">

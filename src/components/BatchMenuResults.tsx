@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { BatchMenuItem } from "@/lib/scan.functions";
 import {
   CheckCircle2,
@@ -6,7 +6,6 @@ import {
   ShieldAlert,
   Sparkles,
   Search,
-  Filter,
   ListFilter,
 } from "lucide-react";
 
@@ -24,34 +23,44 @@ export function BatchMenuResults({
   const [filter, setFilter] = useState<"ALL" | "SAFE" | "FLAGGED">("ALL");
   const [searchQuery, setSearchQuery] = useState("");
 
-  const safeCount = items.filter((i) => i.safety_level === "SAFE").length;
-  const flaggedCount = items.filter(
-    (i) => i.safety_level === "CAUTION" || i.safety_level === "AVOID"
-  ).length;
+  const safeCount = useMemo(
+    () => items.filter((i) => i.safety_level === "SAFE").length,
+    [items]
+  );
 
-  const filteredItems = items.filter((item) => {
-    // Category filter
-    if (filter === "SAFE" && item.safety_level !== "SAFE") return false;
-    if (
-      filter === "FLAGGED" &&
-      item.safety_level !== "CAUTION" &&
-      item.safety_level !== "AVOID"
-    )
-      return false;
+  const flaggedCount = useMemo(
+    () =>
+      items.filter(
+        (i) => i.safety_level === "CAUTION" || i.safety_level === "AVOID"
+      ).length,
+    [items]
+  );
 
-    // Search query filter
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      const matchName = item.dish_name.toLowerCase().includes(q);
-      const matchAllergens = item.detected_allergens.some((a) =>
-        a.toLowerCase().includes(q)
-      );
-      const matchSummary = item.brief_summary.toLowerCase().includes(q);
-      return matchName || matchAllergens || matchSummary;
-    }
+  const filteredItems = useMemo(() => {
+    return items.filter((item) => {
+      // Category filter
+      if (filter === "SAFE" && item.safety_level !== "SAFE") return false;
+      if (
+        filter === "FLAGGED" &&
+        item.safety_level !== "CAUTION" &&
+        item.safety_level !== "AVOID"
+      )
+        return false;
 
-    return true;
-  });
+      // Search query filter
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchName = item.dish_name.toLowerCase().includes(q);
+        const matchAllergens = item.detected_allergens.some((a) =>
+          a.toLowerCase().includes(q)
+        );
+        const matchSummary = item.brief_summary.toLowerCase().includes(q);
+        return matchName || matchAllergens || matchSummary;
+      }
+
+      return true;
+    });
+  }, [items, filter, searchQuery]);
 
   return (
     <div className="mt-8 space-y-6 w-full max-w-full overflow-hidden box-border">
