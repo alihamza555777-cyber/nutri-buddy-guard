@@ -687,8 +687,22 @@ function HomePage() {
                 <Leaf className="h-4 w-4" />
                 Ask your server
               </h4>
-              <p className="mt-2 text-info-foreground">{result.waiter_question}</p>
+              <p className="mt-2 text-info-foreground">{result.server_question || result.waiter_question}</p>
             </div>
+
+            {result.make_it_safe_instructions && result.make_it_safe_instructions.length > 0 && (
+              <div className="mt-6 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 dark:border-emerald-500/30 dark:bg-emerald-950/40">
+                <h4 className="flex items-center gap-2 text-sm font-semibold text-emerald-700 dark:text-emerald-300">
+                  <Sparkles className="h-4 w-4" />
+                  Make It Safe Instructions
+                </h4>
+                <ul className="mt-2 space-y-1.5 list-disc list-inside text-sm text-foreground">
+                  {result.make_it_safe_instructions.map((step, idx) => (
+                    <li key={idx}>{step}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {(result.safety_level === "CAUTION" || result.safety_level === "AVOID") && (
               <div className="mt-6 border-t border-border pt-6">
@@ -763,14 +777,24 @@ function SafetyBadge({ level }: { level: ScanResult["safety_level"] }) {
 }
 
 function NutritionGrid({ result, profile }: { result: ScanResult; profile: { target_calories?: number | null; target_protein?: number | null } | null }) {
+  const nutrition = result.nutrition ?? {
+    calories: result.calories,
+    protein_g: result.protein_g,
+    carbs_g: result.carbs_g,
+    fats_g: result.fats_g,
+    fiber_g: result.fiber_g,
+    sugar_g: result.sugar_g,
+    sodium_mg: result.sodium_mg,
+  };
+
   const items = [
-    { label: "Calories", value: result.calories, unit: "kcal", target: profile?.target_calories },
-    { label: "Protein", value: result.protein_g, unit: "g", target: profile?.target_protein },
-    { label: "Carbs", value: result.carbs_g, unit: "g" },
-    { label: "Fats", value: result.fats_g, unit: "g" },
-    { label: "Fiber", value: result.fiber_g, unit: "g" },
-    { label: "Sugar", value: result.sugar_g, unit: "g" },
-    { label: "Sodium", value: result.sodium_mg, unit: "mg" },
+    { label: "Calories", value: nutrition.calories, unit: "kcal", target: profile?.target_calories },
+    { label: "Protein", value: nutrition.protein_g, unit: "g", target: profile?.target_protein },
+    { label: "Carbs", value: nutrition.carbs_g, unit: "g" },
+    { label: "Fats", value: nutrition.fats_g, unit: "g" },
+    { label: "Fiber", value: nutrition.fiber_g, unit: "g" },
+    { label: "Sugar", value: nutrition.sugar_g, unit: "g" },
+    { label: "Sodium", value: nutrition.sodium_mg, unit: "mg" },
   ];
 
   return (
@@ -785,7 +809,7 @@ function NutritionGrid({ result, profile }: { result: ScanResult; profile: { tar
             <p className="text-sm font-medium text-muted-foreground">{item.label}</p>
             <p className="mt-1 text-2xl font-bold text-card-foreground">
               {item.value ?? "—"}
-              {item.value && <span className="ml-1 text-sm font-normal text-muted-foreground">{item.unit}</span>}
+              {item.value !== null && item.value !== undefined && <span className="ml-1 text-sm font-normal text-muted-foreground">{item.unit}</span>}
             </p>
             {pct !== null && (
               <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-muted">

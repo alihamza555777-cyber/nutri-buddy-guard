@@ -20,7 +20,7 @@ const AnalyzeInputSchema = z.object({
 const ScanResultSchema = z.object({
   dish_name: z.string(),
   safety_level: z.enum(["SAFE", "CAUTION", "AVOID"]),
-  calories: z.number().int().nullable(),
+  calories: z.number().nullable(),
   protein_g: z.number().nullable(),
   carbs_g: z.number().nullable(),
   fats_g: z.number().nullable(),
@@ -30,6 +30,17 @@ const ScanResultSchema = z.object({
   flagged_ingredients: z.array(z.string()).default([]),
   explanation: z.string(),
   waiter_question: z.string(),
+  server_question: z.string(),
+  make_it_safe_instructions: z.array(z.string()).default([]),
+  nutrition: z.object({
+    calories: z.number().nullable(),
+    protein_g: z.number().nullable(),
+    carbs_g: z.number().nullable(),
+    fats_g: z.number().nullable(),
+    fiber_g: z.number().nullable(),
+    sugar_g: z.number().nullable(),
+    sodium_mg: z.number().nullable(),
+  }),
 });
 
 export type ScanResult = z.infer<typeof ScanResultSchema>;
@@ -57,16 +68,19 @@ export const analyzeFood = createServerFn({ method: "POST" })
       return ScanResultSchema.parse({
         dish_name: result.dish_name,
         safety_level: result.safety_status,
-        calories: result.calories,
-        protein_g: result.protein_g,
-        carbs_g: result.carbs_g,
-        fats_g: result.fats_g,
-        fiber_g: result.fiber_g ?? null,
-        sugar_g: result.sugar_g ?? null,
-        sodium_mg: result.sodium_mg ?? null,
+        calories: result.nutrition.calories,
+        protein_g: result.nutrition.protein_g,
+        carbs_g: result.nutrition.carbs_g,
+        fats_g: result.nutrition.fats_g,
+        fiber_g: result.nutrition.fiber_g,
+        sugar_g: result.nutrition.sugar_g,
+        sodium_mg: result.nutrition.sodium_mg,
         flagged_ingredients: result.detected_allergens,
         explanation: result.summary,
-        waiter_question: result.waiter_question,
+        waiter_question: result.server_question,
+        server_question: result.server_question,
+        make_it_safe_instructions: result.make_it_safe_instructions,
+        nutrition: result.nutrition,
       });
     } catch (error: any) {
       console.error("Groq Food Analysis Error:", error);

@@ -11,15 +11,18 @@ export interface GroqFoodAnalysisResult {
   dish_name: string;
   safety_status: "SAFE" | "CAUTION" | "AVOID";
   summary: string;
-  calories: number | null;
-  protein_g: number | null;
-  carbs_g: number | null;
-  fats_g: number | null;
+  server_question: string;
+  make_it_safe_instructions: string[];
+  nutrition: {
+    calories: number | null;
+    protein_g: number | null;
+    carbs_g: number | null;
+    fats_g: number | null;
+    fiber_g: number | null;
+    sugar_g: number | null;
+    sodium_mg: number | null;
+  };
   detected_allergens: string[];
-  waiter_question: string;
-  fiber_g?: number | null;
-  sugar_g?: number | null;
-  sodium_mg?: number | null;
 }
 
 export interface AnalyzeFoodOptions {
@@ -157,8 +160,33 @@ export async function analyzeFoodWithGroq(
 
   const model = isImage ? GROQ_VISION_MODEL : GROQ_TEXT_MODEL;
 
-  const systemPrompt =
-    "You are a nutritional AI. Respond strictly in valid JSON format containing safety_status ('SAFE'|'CAUTION'|'AVOID'), summary, calories, protein_g, carbs_g, fats_g, detected_allergens.";
+  const dishName = isImage ? "Scanned Food Dish" : rawInput || "Food Item";
+  const userRestrictions = options.restrictions || [];
+  const userNotes = options.customNotes || "None";
+
+  const systemPrompt = `You are NutriGuard's specialized clinical nutritionist and dietary safety AI.
+Analyze the requested food dish: '${dishName}'.
+User Dietary Restrictions & Allergies: [${userRestrictions.join(", ")}]
+Custom Notes/Medical Conditions: [${userNotes}]
+
+You MUST evaluate the dish and respond STRICTLY in valid JSON format matching this schema:
+{
+  "dish_name": "${dishName}",
+  "safety_status": "SAFE" | "CAUTION" | "AVOID",
+  "summary": "Inspection summary explaining safety or cross-contamination risks.",
+  "server_question": "One concise, critical question the user should ask their server before ordering.",
+  "make_it_safe_instructions": ["Step 1...", "Step 2..."],
+  "nutrition": {
+    "calories": number,
+    "protein_g": number,
+    "carbs_g": number,
+    "fats_g": number,
+    "fiber_g": number,
+    "sugar_g": number,
+    "sodium_mg": number
+  },
+  "detected_allergens": ["Allergen1", "Allergen2"]
+}`;
 
   let messages: any[];
 
@@ -169,17 +197,6 @@ export async function analyzeFoodWithGroq(
         ? rawInput
         : `data:image/jpeg;base64,${cleanBase64}`;
 
-    const textPrompt =
-      options.restrictions?.length || options.customNotes
-        ? `User Dietary Profile:
-- Dietary Restrictions & Allergies: ${(options.restrictions || []).join(", ") || "None specified"}
-- Custom Notes / Medical Conditions: ${options.customNotes || "None"}
-${options.targetCalories ? `- Target Daily Calories: ${options.targetCalories}` : ""}
-${options.targetProtein ? `- Target Daily Protein: ${options.targetProtein}g` : ""}
-
-Analyze this dish for dietary restrictions, allergies, safety status ('SAFE' | 'CAUTION' | 'AVOID'), macros (calories, protein, carbs, fats), and detected allergens. Return strictly valid JSON.`
-        : "Analyze this dish for dietary restrictions, allergies, safety status ('SAFE' | 'CAUTION' | 'AVOID'), macros (calories, protein, carbs, fats), and detected allergens. Return strictly valid JSON.";
-
     messages = [
       { role: "system", content: systemPrompt },
       {
@@ -187,7 +204,7 @@ Analyze this dish for dietary restrictions, allergies, safety status ('SAFE' | '
         content: [
           {
             type: "text",
-            text: textPrompt,
+            text: `Analyze the food dish in this image according to the system prompt guidelines and respond in valid JSON.`,
           },
           {
             type: "image_url",
@@ -199,34 +216,12 @@ Analyze this dish for dietary restrictions, allergies, safety status ('SAFE' | '
       },
     ];
   } else {
-    const userInstruction = `
-User Dietary Profile:
-- Dietary Restrictions & Allergies: ${(options.restrictions || []).join(", ") || "None specified"}
-- Custom Notes / Medical Conditions: ${options.customNotes || "None"}
-${options.targetCalories ? `- Target Daily Calories: ${options.targetCalories}` : ""}
-${options.targetProtein ? `- Target Daily Protein: ${options.targetProtein}g` : ""}
-
-Food Input:
-- Input Type: Dish Name Typed
-- Dish / Input Details: ${rawInput}
-
-Return a valid JSON object matching this schema:
-{
-  "dish_name": "string",
-  "safety_status": "SAFE" | "CAUTION" | "AVOID",
-  "summary": "string explaining nutritional safety and key points concisely",
-  "waiter_question": "string concrete question for server",
-  "calories": number or null,
-  "protein_g": number or null,
-  "carbs_g": number or null,
-  "fats_g": number or null,
-  "detected_allergens": ["string"]
-}
-`;
-
     messages = [
       { role: "system", content: systemPrompt },
-      { role: "user", content: userInstruction.trim() },
+      {
+        role: "user",
+        content: `Analyze the food dish '${dishName}' according to the system prompt guidelines and respond in valid JSON.`,
+      },
     ];
   }
 
@@ -275,19 +270,28 @@ Return a valid JSON object matching this schema:
       ? parsed.flagged_ingredients
       : [];
 
+    const make_it_safe_instructions = Array.isArray(parsed.make_it_safe_instructions)
+      ? parsed.make_it_safe_instructions.map(String)
+      : [];
+
+    const n = parsed.nutrition || {};
+
     return {
-      dish_name: parsed.dish_name || (isImage ? "Scanned Food Item" : options.dishInput || "Food Item"),
+      dish_name: parsed.dish_name || dishName,
       safety_status,
       summary: parsed.summary || parsed.explanation || "Analysis complete.",
-      waiter_question: parsed.waiter_question || "Ask your server to verify ingredients.",
-      calories: typeof parsed.calories === "number" ? parsed.calories : null,
-      protein_g: typeof parsed.protein_g === "number" ? parsed.protein_g : null,
-      carbs_g: typeof parsed.carbs_g === "number" ? parsed.carbs_g : null,
-      fats_g: typeof parsed.fats_g === "number" ? parsed.fats_g : null,
+      server_question: parsed.server_question || parsed.waiter_question || "Ask your server to verify ingredients.",
+      make_it_safe_instructions,
+      nutrition: {
+        calories: typeof n.calories === "number" ? n.calories : (typeof parsed.calories === "number" ? parsed.calories : null),
+        protein_g: typeof n.protein_g === "number" ? n.protein_g : (typeof parsed.protein_g === "number" ? parsed.protein_g : null),
+        carbs_g: typeof n.carbs_g === "number" ? n.carbs_g : (typeof parsed.carbs_g === "number" ? parsed.carbs_g : null),
+        fats_g: typeof n.fats_g === "number" ? n.fats_g : (typeof parsed.fats_g === "number" ? parsed.fats_g : null),
+        fiber_g: typeof n.fiber_g === "number" ? n.fiber_g : (typeof parsed.fiber_g === "number" ? parsed.fiber_g : null),
+        sugar_g: typeof n.sugar_g === "number" ? n.sugar_g : (typeof parsed.sugar_g === "number" ? parsed.sugar_g : null),
+        sodium_mg: typeof n.sodium_mg === "number" ? n.sodium_mg : (typeof parsed.sodium_mg === "number" ? parsed.sodium_mg : null),
+      },
       detected_allergens,
-      fiber_g: typeof parsed.fiber_g === "number" ? parsed.fiber_g : null,
-      sugar_g: typeof parsed.sugar_g === "number" ? parsed.sugar_g : null,
-      sodium_mg: typeof parsed.sodium_mg === "number" ? parsed.sodium_mg : null,
     };
   } catch (error: any) {
     console.error("Groq AI Analysis Error:", error);

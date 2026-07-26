@@ -21,11 +21,11 @@ export const GEMINI_FALLBACK_MODEL = GROQ_VISION_MODEL;
 export interface StandardFoodAnalysisJSON {
   dish_name: string;
   safety_status: "SAFE" | "CAUTION" | "AVOID";
-  detected_allergens: string[];
   summary: string;
-  waiter_question: string;
-  calories: number | null;
-  macros: {
+  server_question: string;
+  make_it_safe_instructions: string[];
+  nutrition: {
+    calories: number | null;
     protein_g: number | null;
     carbs_g: number | null;
     fats_g: number | null;
@@ -33,6 +33,7 @@ export interface StandardFoodAnalysisJSON {
     sugar_g: number | null;
     sodium_mg: number | null;
   };
+  detected_allergens: string[];
 }
 
 /**
