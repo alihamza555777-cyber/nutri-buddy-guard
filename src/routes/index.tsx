@@ -17,6 +17,7 @@ import {
   Upload,
   AlertTriangle,
   CheckCircle2,
+  XCircle,
   Utensils,
   ChevronRight,
   Leaf,
