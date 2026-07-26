@@ -73,7 +73,7 @@ function AuthPage() {
 
     try {
       if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email: trimmedEmail,
           password,
           options: {
@@ -83,7 +83,37 @@ function AuthPage() {
             },
           },
         });
-        if (error) throw error;
+
+        if (error) {
+          const errMessage = (error.message || "").toLowerCase();
+          const isAlreadyRegistered =
+            errMessage.includes("already registered") ||
+            errMessage.includes("already exists") ||
+            error.status === 422 ||
+            (error as any)?.code === "user_already_exists";
+
+          if (isAlreadyRegistered) {
+            const msg = "An account with this email already exists. Please log in instead.";
+            setError(msg);
+            toast.error(msg);
+            setMode("signin");
+            return;
+          }
+
+          toast.error(error.message);
+          setError(error.message);
+          return;
+        }
+
+        // Handle case where Supabase returns 200 OK but user identities is empty (existing account)
+        if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+          const msg = "An account with this email already exists. Please log in instead.";
+          setError(msg);
+          toast.error(msg);
+          setMode("signin");
+          return;
+        }
+
         const msg = "Check your email to confirm your account.";
         setMessage(msg);
         toast.success(msg);
@@ -92,23 +122,24 @@ function AuthPage() {
           email: trimmedEmail,
           password,
         });
-        if (error) throw error;
+
+        if (error) {
+          const raw = String(error.message || "").toLowerCase();
+          let friendlyMessage = error.message;
+          if (raw.includes("invalid login credentials") || raw.includes("invalid credentials")) {
+            friendlyMessage = "Invalid email or password";
+          }
+          setError(friendlyMessage);
+          toast.error(friendlyMessage);
+          return;
+        }
+
         toast.success("Signed in successfully!");
         router.navigate({ to: "/", replace: true });
       }
     } catch (err: any) {
       console.error("Auth submit error:", err);
-      let friendlyMessage = err?.message || "Authentication failed. Please try again.";
-      const raw = String(err?.message || "").toLowerCase();
-
-      if (raw.includes("invalid login credentials") || raw.includes("invalid credentials")) {
-        friendlyMessage = "Invalid email or password";
-      } else if (raw.includes("user already registered") || raw.includes("already exists")) {
-        friendlyMessage = "An account with this email already exists";
-      } else if (raw.includes("password") && (raw.includes("weak") || raw.includes("least"))) {
-        friendlyMessage = "Password is too weak. Please use at least 6 characters.";
-      }
-
+      const friendlyMessage = err?.message || "Authentication failed. Please try again.";
       setError(friendlyMessage);
       toast.error(friendlyMessage);
     } finally {
