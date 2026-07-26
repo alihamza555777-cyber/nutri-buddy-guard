@@ -163,7 +163,9 @@ function HomePage() {
       });
       setResult(data);
 
-      if (user) {
+      const currentUser = user || (await supabase.auth.getUser()).data.user;
+
+      if (currentUser) {
         try {
           const { data: sessionData } = await supabase.auth.getSession();
           const token = sessionData.session?.access_token;
@@ -174,7 +176,7 @@ function HomePage() {
 
           let imageUrl: string | null = null;
           if (fileObj) {
-            const path = `${user.id}/${Date.now()}-${fileObj.name}`;
+            const path = `${currentUser.id}/${Date.now()}-${fileObj.name}`;
             const { data: uploadData, error: uploadError } = await supabase.storage
               .from("scan-images")
               .upload(path, fileObj);
@@ -194,12 +196,14 @@ function HomePage() {
             headers,
           });
           queryClient.invalidateQueries({ queryKey: ["today-summary"] });
+          queryClient.invalidateQueries({ queryKey: ["scan-history"] });
+          toast.success("Scan saved to your history!");
         } catch (saveError) {
-          console.warn("Non-fatal: Could not save scan to history database:", saveError);
-          toast.info("Sign in or create an account to save your scan history!");
+          console.error("Failed to save scan record to database:", saveError);
+          toast.error("Scan completed, but could not be saved to history.");
         }
       } else {
-        toast.info("Scan complete! Sign in or create an account to save your history.");
+        toast.info("Sign in or create an account to save your scan history!");
       }
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : "Analysis failed. Please try again.";
@@ -235,7 +239,9 @@ function HomePage() {
       });
       setResult(data);
 
-      if (user) {
+      const currentUser = user || (await supabase.auth.getUser()).data.user;
+
+      if (currentUser) {
         try {
           const { data: sessionData } = await supabase.auth.getSession();
           const token = sessionData.session?.access_token;
@@ -246,7 +252,7 @@ function HomePage() {
 
           let imageUrl: string | null = null;
           if (imageFile) {
-            const path = `${user.id}/${Date.now()}-${imageFile.name}`;
+            const path = `${currentUser.id}/${Date.now()}-${imageFile.name}`;
             const { data: uploadData, error: uploadError } = await supabase.storage
               .from("scan-images")
               .upload(path, imageFile);
@@ -266,12 +272,14 @@ function HomePage() {
             headers,
           });
           queryClient.invalidateQueries({ queryKey: ["today-summary"] });
+          queryClient.invalidateQueries({ queryKey: ["scan-history"] });
+          toast.success("Scan saved to your history!");
         } catch (saveError) {
-          console.warn("Non-fatal: Could not save scan to history database:", saveError);
-          toast.info("Sign in or create an account to save your scan history!");
+          console.error("Failed to save scan record to database:", saveError);
+          toast.error("Scan completed, but could not be saved to history.");
         }
       } else {
-        toast.info("Scan complete! Sign in or create an account to save your history.");
+        toast.info("Sign in or create an account to save your scan history!");
       }
     } catch (err: any) {
       const errMsg = err instanceof Error ? err.message : "Analysis failed. Please try again.";
@@ -650,37 +658,45 @@ function HomePage() {
       </section>
 
       {/* Single Scan Results */}
-      {result && (
-        <section className="mt-10 space-y-6">
-          <div className="rounded-3xl border border-border bg-card p-6 sm:p-8">
-            <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-              <div>
-                <h3 className="text-2xl font-bold text-card-foreground">{result.dish_name}</h3>
-                <p className="text-sm text-muted-foreground">AI inspection result</p>
-              </div>
-              <SafetyBadge level={result.safety_level} />
-            </div>
+      {result && (() => {
+        const relevantFlaggedIngredients = (result.flagged_ingredients || []).filter((_item: string) => {
+          if (restrictions.length === 0 && !customNotes?.trim()) {
+            return false; // User has no allergies set, so do not flag anything
+          }
+          return true;
+        });
 
-            <p className="mt-6 text-foreground">{result.explanation}</p>
-
-            {result.flagged_ingredients.length > 0 && (
-              <div className="mt-6 rounded-2xl bg-danger/10 p-4">
-                <h4 className="flex items-center gap-2 text-sm font-semibold text-danger">
-                  <AlertTriangle className="h-4 w-4" />
-                  Flagged ingredients
-                </h4>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {result.flagged_ingredients.map((ing) => (
-                    <span
-                      key={ing}
-                      className="rounded-full bg-danger/20 px-3 py-1 text-sm font-medium text-danger"
-                    >
-                      {ing}
-                    </span>
-                  ))}
+        return (
+          <section className="mt-10 space-y-6">
+            <div className="rounded-3xl border border-border bg-card p-6 sm:p-8">
+              <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+                <div>
+                  <h3 className="text-2xl font-bold text-card-foreground">{result.dish_name}</h3>
+                  <p className="text-sm text-muted-foreground">AI inspection result</p>
                 </div>
+                <SafetyBadge level={result.safety_level} />
               </div>
-            )}
+
+              <p className="mt-6 text-foreground">{result.explanation}</p>
+
+              {relevantFlaggedIngredients.length > 0 && (
+                <div className="mt-6 rounded-2xl bg-danger/10 p-4">
+                  <h4 className="flex items-center gap-2 text-sm font-semibold text-danger">
+                    <AlertTriangle className="h-4 w-4" />
+                    Flagged ingredients
+                  </h4>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {relevantFlaggedIngredients.map((ing) => (
+                      <span
+                        key={ing}
+                        className="rounded-full bg-danger/20 px-3 py-1 text-sm font-medium text-danger"
+                      >
+                        {ing}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
 
             <div className="mt-6 rounded-2xl bg-info/10 p-4">
               <h4 className="flex items-center gap-2 text-sm font-semibold text-info-foreground">
@@ -732,7 +748,8 @@ function HomePage() {
             />
           )}
         </section>
-      )}
+        );
+      })()}
 
       <DigitalWaiterCardModal
         isOpen={isWaiterModalOpen}

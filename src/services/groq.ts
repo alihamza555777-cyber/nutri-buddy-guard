@@ -169,6 +169,10 @@ Analyze the requested food dish: '${dishName}'.
 User Dietary Restrictions & Allergies: [${userRestrictions.join(", ")}]
 Custom Notes/Medical Conditions: [${userNotes}]
 
+IMPORTANT ALLERGEN FLAGGING RULES:
+- ONLY flag an ingredient in 'detected_allergens' if it directly violates one of the user's explicitly provided restrictions or custom allergy notes.
+- If the user has provided NO dietary restrictions (userRestrictions is empty) and NO custom notes, 'detected_allergens' MUST BE AN EMPTY ARRAY [] regardless of what standard allergens are present in the dish.
+
 You MUST evaluate the dish and respond STRICTLY in valid JSON format matching this schema:
 {
   "dish_name": "${dishName}",
