@@ -87,7 +87,8 @@ You MUST respond strictly in valid, raw JSON (no markdown backticks, no markdown
 Below are visual demonstrations of the NutriGuard application across key user workflows:
 
 ### **1. Main Scanner & Food Allergen Inspection**
-![Screenshot 1: Main Scanner & AI Food Analysis Output](./screenshots/screenshot1.png)
+![Screenshot 1: Main Scanner & AI Food Analysis Output](.<img width="1224" height="691" alt="image" src="https://github.com/user-attachments/assets/16931bdd-652b-4b6b-9566-fc953697f5a1" />
+)
 
 ### **2. Instant Menu Allergen Radar (`/menu-radar`)**
 ![Screenshot 2: Instant Menu Allergen Radar Batch Dish Analysis](./screenshots/screenshot2.png)
@@ -143,7 +144,7 @@ npm run build
 
 ## 📜 License & Author
 
-- **Project:** NutriGuard (Nutri-Buddy-Guard)
+- **Project:** NutriGuard (Nutri-Guard-Buddy)
 - **Author:** Ali Hamza
 - **Repository:** [https://github.com/alihamza555777-cyber/nutri-buddy-guard](https://github.com/alihamza555777-cyber/nutri-buddy-guard)
 - **Live URL:** [https://nutri-guard-buddy.vercel.app](https://nutri-guard-buddy.vercel.app)
