@@ -112,3 +112,37 @@ export const getTodayNutritionSummary = createServerFn({ method: "GET" })
 
     return summary;
   });
+
+export const deleteScanRecord = createServerFn({ method: "POST" })
+  .middleware([optionalSupabaseAuth])
+  .validator((input: unknown) => ({ scanId: String((input as any)?.scanId || "") }))
+  .handler(async ({ data, context }) => {
+    const userId = context.userId || context.user?.id;
+    if (!userId || !context.isAuthenticated) {
+      throw new Error("Unauthorized: Login required to delete scan.");
+    }
+    const { error } = await context.supabase
+      .from("scan_history")
+      .delete()
+      .eq("id", data.scanId)
+      .eq("user_id", userId);
+
+    if (error) throw error;
+    return { ok: true };
+  });
+
+export const clearAllScanRecords = createServerFn({ method: "POST" })
+  .middleware([optionalSupabaseAuth])
+  .handler(async ({ context }) => {
+    const userId = context.userId || context.user?.id;
+    if (!userId || !context.isAuthenticated) {
+      throw new Error("Unauthorized: Login required to clear scan history.");
+    }
+    const { error } = await context.supabase
+      .from("scan_history")
+      .delete()
+      .eq("user_id", userId);
+
+    if (error) throw error;
+    return { ok: true };
+  });
