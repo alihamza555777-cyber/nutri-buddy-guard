@@ -87,8 +87,8 @@ You MUST respond strictly in valid, raw JSON (no markdown backticks, no markdown
 Below are visual demonstrations of the NutriGuard application across key user workflows:
 
 ### **1. Main Scanner & Food Allergen Inspection**
-![Screenshot 1: Main Scanner & AI Food Analysis Output](.<img width="1224" height="691" alt="image" src="https://github.com/user-attachments/assets/16931bdd-652b-4b6b-9566-fc953697f5a1" />
-)
+.<img width="1224" height="691" alt="image" src="https://github.com/user-attachments/assets/16931bdd-652b-4b6b-9566-fc953697f5a1" />
+
 
 ### **2. Instant Menu Allergen Radar (`/menu-radar`)**
 ![Screenshot 2: Instant Menu Allergen Radar Batch Dish Analysis](./screenshots/screenshot2.png)
