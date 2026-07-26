@@ -189,12 +189,20 @@ export const BatchMenuItemSchema = z.object({
   safety_level: z.enum(["SAFE", "CAUTION", "AVOID"]),
   detected_allergens: z.array(z.string()).default([]),
   brief_summary: z.string(),
+  price: z.string().optional().default("N/A"),
+  safety_status: z.enum(["SAFE", "CAUTION", "AVOID"]).optional(),
+  summary: z.string().optional(),
+  server_question: z.string().optional().default(""),
+  make_it_safe_instructions: z.array(z.string()).optional().default([]),
+  flagged_ingredients: z.array(z.string()).optional().default([]),
 });
 
 export type BatchMenuItem = z.infer<typeof BatchMenuItemSchema>;
 
 export const BatchMenuResultSchema = z.object({
-  items: z.array(BatchMenuItemSchema),
+  menu_title: z.string().optional().default("Identified Menu Section"),
+  items: z.array(BatchMenuItemSchema).default([]),
+  dishes: z.array(BatchMenuItemSchema).optional(),
 });
 
 export type BatchMenuResult = z.infer<typeof BatchMenuResultSchema>;
@@ -227,3 +235,4 @@ export const analyzeBatchMenu = createServerFn({ method: "POST" })
       throw new Error(error?.message || "Failed to analyze batch menu photo.");
     }
   });
+

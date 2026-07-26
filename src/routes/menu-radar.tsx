@@ -121,11 +121,14 @@ function MenuRadarPage() {
     return () => window.removeEventListener("nutriguard-open-camera", handleOpenCamera);
   }, []);
 
+  const [menuTitle, setMenuTitle] = useState<string | null>(null);
+
   async function executeBatchScanWithImage(base64Data: string) {
     setImageBase64(base64Data);
     setError(null);
     setLoading(true);
     setBatchResults(null);
+    setMenuTitle(null);
 
     try {
       const batchRes = await analyzeBatchFn({
@@ -135,7 +138,10 @@ function MenuRadarPage() {
           customNotes,
         },
       });
-      setBatchResults(batchRes.items);
+      setBatchResults(batchRes.items ?? batchRes.dishes ?? []);
+      if (batchRes.menu_title) {
+        setMenuTitle(batchRes.menu_title);
+      }
     } catch (err: any) {
       const errMsg = err instanceof Error ? err.message : "Batch menu analysis failed. Please try again.";
       setError(errMsg);
@@ -226,6 +232,7 @@ function MenuRadarPage() {
     setError(null);
     setLoading(true);
     setBatchResults(null);
+    setMenuTitle(null);
 
     try {
       const batchRes = await analyzeBatchFn({
@@ -235,7 +242,10 @@ function MenuRadarPage() {
           customNotes,
         },
       });
-      setBatchResults(batchRes.items);
+      setBatchResults(batchRes.items ?? batchRes.dishes ?? []);
+      if (batchRes.menu_title) {
+        setMenuTitle(batchRes.menu_title);
+      }
     } catch (err: any) {
       const errMsg = err?.message || "Batch menu analysis failed. Please try again.";
       setError(errMsg);
@@ -437,10 +447,12 @@ function MenuRadarPage() {
       {batchResults && (
         <BatchMenuResults
           items={batchResults}
+          menuTitle={menuTitle || undefined}
           onMakeItSafe={(dish) => setActiveBatchSafeDish(dish)}
           onResetScan={() => {
             setBatchResults(null);
             setImageBase64(null);
+            setMenuTitle(null);
           }}
         />
       )}

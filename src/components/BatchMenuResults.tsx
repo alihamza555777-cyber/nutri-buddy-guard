@@ -10,57 +10,71 @@ import {
 } from "lucide-react";
 
 interface BatchMenuResultsProps {
-  items: BatchMenuItem[];
+  items?: BatchMenuItem[];
+  dishes?: BatchMenuItem[];
+  menuTitle?: string;
   onMakeItSafe?: (dish: BatchMenuItem) => void;
   onResetScan?: () => void;
 }
 
 export function BatchMenuResults({
   items,
+  dishes,
+  menuTitle,
   onMakeItSafe,
   onResetScan,
 }: BatchMenuResultsProps) {
   const [filter, setFilter] = useState<"ALL" | "SAFE" | "FLAGGED">("ALL");
   const [searchQuery, setSearchQuery] = useState("");
 
+  const dishList = useMemo(() => {
+    const list = items || dishes || [];
+    return Array.isArray(list) ? list : [];
+  }, [items, dishes]);
+
   const safeCount = useMemo(
-    () => items.filter((i) => i.safety_level === "SAFE").length,
-    [items]
+    () => dishList.filter((i) => (i.safety_status || i.safety_level) === "SAFE").length,
+    [dishList]
   );
 
   const flaggedCount = useMemo(
     () =>
-      items.filter(
-        (i) => i.safety_level === "CAUTION" || i.safety_level === "AVOID"
+      dishList.filter(
+        (i) =>
+          (i.safety_status || i.safety_level) === "CAUTION" ||
+          (i.safety_status || i.safety_level) === "AVOID"
       ).length,
-    [items]
+    [dishList]
   );
 
   const filteredItems = useMemo(() => {
-    return items.filter((item) => {
+    return dishList.filter((item) => {
+      const status = item.safety_status || item.safety_level || "SAFE";
       // Category filter
-      if (filter === "SAFE" && item.safety_level !== "SAFE") return false;
+      if (filter === "SAFE" && status !== "SAFE") return false;
       if (
         filter === "FLAGGED" &&
-        item.safety_level !== "CAUTION" &&
-        item.safety_level !== "AVOID"
+        status !== "CAUTION" &&
+        status !== "AVOID"
       )
         return false;
 
       // Search query filter
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
-        const matchName = item.dish_name.toLowerCase().includes(q);
-        const matchAllergens = item.detected_allergens.some((a) =>
+        const matchName = (item.dish_name || "").toLowerCase().includes(q);
+        const allergens = item.flagged_ingredients || item.detected_allergens || [];
+        const matchAllergens = allergens.some((a) =>
           a.toLowerCase().includes(q)
         );
-        const matchSummary = item.brief_summary.toLowerCase().includes(q);
+        const summary = item.summary || item.brief_summary || "";
+        const matchSummary = summary.toLowerCase().includes(q);
         return matchName || matchAllergens || matchSummary;
       }
 
       return true;
     });
-  }, [items, filter, searchQuery]);
+  }, [dishList, filter, searchQuery]);
 
   return (
     <div className="mt-8 space-y-6 w-full max-w-full overflow-hidden box-border">
@@ -71,11 +85,11 @@ export function BatchMenuResults({
             <div className="flex items-center gap-2">
               <span className="flex h-3 w-3 rounded-full bg-[#008000] animate-pulse shrink-0" />
               <h3 className="text-lg sm:text-xl font-bold tracking-tight text-slate-900 dark:text-white break-words">
-                Instant Allergen Radar
+                {menuTitle || "Instant Allergen Radar"}
               </h3>
             </div>
             <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-              Scanned full menu page: <span className="font-semibold text-slate-900 dark:text-white">{items.length} dishes detected</span>
+              Scanned menu page: <span className="font-semibold text-slate-900 dark:text-white">{dishList.length} dishes detected</span>
             </p>
           </div>
 
@@ -104,7 +118,7 @@ export function BatchMenuResults({
               }`}
             >
               <ListFilter className="h-3.5 w-3.5 shrink-0" />
-              <span>Show All ({items.length})</span>
+              <span>Show All ({dishList.length})</span>
             </button>
 
             <button
@@ -150,9 +164,13 @@ export function BatchMenuResults({
       {filteredItems.length > 0 ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filteredItems.map((item, index) => {
-            const isSafe = item.safety_level === "SAFE";
-            const isCaution = item.safety_level === "CAUTION";
-            const isAvoid = item.safety_level === "AVOID";
+            const status = item.safety_status || item.safety_level || "SAFE";
+            const isSafe = status === "SAFE";
+            const isCaution = status === "CAUTION";
+            const isAvoid = status === "AVOID";
+            const summaryText = item.summary || item.brief_summary || "";
+            const priceText = item.price && item.price !== "N/A" ? item.price : null;
+            const flaggedList = item.flagged_ingredients || item.detected_allergens || [];
 
             return (
               <div
@@ -162,9 +180,16 @@ export function BatchMenuResults({
                 <div>
                   {/* Status Badge & Icon */}
                   <div className="flex items-start justify-between gap-3">
-                    <h4 className="text-base font-bold tracking-tight text-slate-900 dark:text-white break-words flex-1">
-                      {item.dish_name}
-                    </h4>
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-base font-bold tracking-tight text-slate-900 dark:text-white break-words">
+                        {item.dish_name}
+                      </h4>
+                      {priceText && (
+                        <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                          {priceText}
+                        </span>
+                      )}
+                    </div>
 
                     {isSafe && (
                       <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-800 shrink-0">
@@ -189,14 +214,24 @@ export function BatchMenuResults({
                   </div>
 
                   {/* Brief Summary */}
-                  <p className="mt-3 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
-                    {item.brief_summary}
-                  </p>
+                  {summaryText && (
+                    <p className="mt-3 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
+                      {summaryText}
+                    </p>
+                  )}
 
-                  {/* Flagged Allergens */}
-                  {item.detected_allergens.length > 0 && (
+                  {/* Server Question if present */}
+                  {item.server_question && (
+                    <p className="mt-2 text-[11px] font-medium text-slate-500 dark:text-slate-400 italic">
+                      <span className="font-semibold not-italic text-slate-700 dark:text-slate-300">Ask Server: </span>
+                      "{item.server_question}"
+                    </p>
+                  )}
+
+                  {/* Flagged Ingredients */}
+                  {flaggedList.length > 0 && (
                     <div className="mt-3 flex flex-wrap gap-1.5">
-                      {item.detected_allergens.map((alg, i) => (
+                      {flaggedList.map((alg, i) => (
                         <span
                           key={i}
                           className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold ${
@@ -237,3 +272,4 @@ export function BatchMenuResults({
     </div>
   );
 }
+

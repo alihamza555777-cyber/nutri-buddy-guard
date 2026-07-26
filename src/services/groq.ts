@@ -201,10 +201,37 @@ export interface BatchMenuItem {
   safety_level: "SAFE" | "CAUTION" | "AVOID";
   detected_allergens: string[];
   brief_summary: string;
+  price?: string;
+  safety_status?: "SAFE" | "CAUTION" | "AVOID";
+  summary?: string;
+  server_question?: string;
+  make_it_safe_instructions?: string[];
+  flagged_ingredients?: string[];
 }
 
 export interface BatchMenuResult {
   items: BatchMenuItem[];
+  menu_title?: string;
+  dishes?: BatchMenuItem[];
+}
+
+export interface MenuDishItem {
+  dish_name: string;
+  price: string;
+  safety_status: "SAFE" | "CAUTION" | "AVOID";
+  summary: string;
+  server_question: string;
+  make_it_safe_instructions: string[];
+  flagged_ingredients: string[];
+  safety_level?: "SAFE" | "CAUTION" | "AVOID";
+  detected_allergens?: string[];
+  brief_summary?: string;
+}
+
+export interface MenuAnalysisResult {
+  menu_title: string;
+  dishes: MenuDishItem[];
+  items?: MenuDishItem[];
 }
 
 /**
@@ -645,57 +672,57 @@ Provide concrete, highly practical instructions for ordering safely. Return JSON
 }
 
 /**
- * Analyzes full menu page photo in batch using Groq vision model.
+ * Dedicated Menu Analysis system function for NutriGuard's "Menu Radar" feature.
+ * Uses NutriGuard's specialized Menu Radar Vision AI system prompt and
+ * robust 3-step sanitization & parsing layer to prevent malformed response crashes.
  */
-export async function analyzeBatchMenuWithGroq(options: {
-  imageBase64: string;
-  restrictions: string[];
-  customNotes: string;
-}): Promise<BatchMenuResult> {
+export async function analyzeMenuImage(
+  imageBase64: string,
+  restrictions: string[] = [],
+  notes: string = ""
+): Promise<MenuAnalysisResult> {
   const apiKey = getGroqApiKey();
 
-  const rawImage = options.imageBase64.trim();
-  const downscaledImage = await downscaleBase64Image(rawImage, 800, 800);
-  const imageUrl = formatGroqImageUrl(downscaledImage);
+  const userRestrictionsStr = restrictions.length > 0 ? restrictions.join(", ") : "None specified";
+  const userNotesStr = notes && notes.trim() ? notes.trim() : "None";
 
-  const systemPrompt = `You are NutriGuard's specialized clinical nutritionist and Instant Menu Allergen Radar AI.
-Your sole job is to inspect restaurant menu photo images and extract every visible dish into structured JSON.
+  // Dedicated Menu Analysis system prompt
+  const systemPrompt = `You are NutriGuard's specialized Menu Radar Vision AI.
+Analyze the provided menu image carefully.
 
-CRITICAL OUTPUT REQUIREMENTS:
-- Output ONLY valid JSON matching the exact target schema.
-- Do NOT output any reasoning steps, explanation text, preamble, or <think> tags.
-- Output MUST begin directly with '{' and end with '}'.
+User Dietary Restrictions & Allergies: [${userRestrictionsStr}]
+Custom Medical Notes & Conditions: [${userNotesStr}]
 
-Target JSON Schema:
+### CRITICAL REQUIREMENTS:
+1. Scan all visible food items on the menu page.
+2. For EACH detected menu item, evaluate its safety status strictly against the user's explicit restrictions and notes:
+   - "SAFE": Presents no clear conflict or high cross-contamination risk.
+   - "CAUTION": May contain allergens or has a high risk of cross-contamination.
+   - "AVOID": Direct match with user restrictions/allergies.
+3. Keep server questions brief and practical for a restaurant context.
+4. Output MUST be strictly valid JSON without any markdown code block wrappers (no \`\`\`json), without conversational prefixes or suffixes, and without <think> tags.
+
+### REQUIRED JSON SCHEMA FORMAT:
 {
-  "items": [
+  "menu_title": "Identified Section or Menu Title",
+  "dishes": [
     {
-      "dish_name": "Name of Dish",
-      "safety_level": "SAFE" | "CAUTION" | "AVOID",
-      "detected_allergens": ["Allergen 1", "Allergen 2"],
-      "brief_summary": "One concise sentence explaining safety or allergen risks."
+      "dish_name": "Exact Name of Item",
+      "price": "Price as displayed or N/A",
+      "safety_status": "SAFE" | "CAUTION" | "AVOID",
+      "summary": "Brief 1-sentence explanation relative to user restrictions.",
+      "server_question": "One key question to ask the server.",
+      "make_it_safe_instructions": ["Modification request if applicable"],
+      "flagged_ingredients": ["List of violating ingredients or empty []"]
     }
   ]
 }`;
 
-  const promptText = `
-Analyze the attached restaurant menu image and extract ALL distinct menu items/dishes visible.
+  const promptText = `Analyze this menu image. User restrictions: [${userRestrictionsStr}]. Special notes: [${userNotesStr}].`;
 
-User Dietary Restrictions & Allergies: [${options.restrictions.join(", ") || "None specified"}]
-User Custom Medical Notes: [${options.customNotes || "None"}]
-
-For each dish detected on the menu:
-1. Extract the exact dish title.
-2. Cross-reference its typical ingredients and preparation against the user's restrictions and custom notes.
-3. Assign "safety_level":
-   - "SAFE": No allergen or restriction match.
-   - "CAUTION": High cross-contamination risk or questionable preparation.
-   - "AVOID": Contains a direct restriction/allergen match.
-4. List any detected_allergens that conflict with the user's settings.
-5. Provide a 1-sentence brief_summary.
-
-Respond strictly in valid JSON matching the schema.
-`;
+  const rawImage = (imageBase64 || "").trim();
+  const downscaledImage = await downscaleBase64Image(rawImage, 800, 800);
+  const imageUrl = formatGroqImageUrl(downscaledImage);
 
   try {
     const resData = await executeGroqCompletion(apiKey, {
@@ -705,7 +732,7 @@ Respond strictly in valid JSON matching the schema.
         {
           role: "user",
           content: [
-            { type: "text", text: promptText.trim() },
+            { type: "text", text: promptText },
             { type: "image_url", image_url: { url: imageUrl } },
           ],
         },
@@ -714,23 +741,118 @@ Respond strictly in valid JSON matching the schema.
       response_format: { type: "json_object" },
     });
 
-    const rawContent = resData?.choices?.[0]?.message?.content;
-    if (!rawContent) throw new Error("Empty response from Groq AI service.");
+    const rawResponse = resData?.choices?.[0]?.message?.content || "";
 
-    const parsed = parseAIJsonResponse(rawContent);
+    if (!rawResponse) {
+      throw new Error("Empty response received from AI vision model.");
+    }
 
-    const items = Array.isArray(parsed.items)
-      ? parsed.items.map((item: any) => ({
-          dish_name: String(item.dish_name || "Menu Item"),
-          safety_level: ["SAFE", "CAUTION", "AVOID"].includes(item.safety_level) ? item.safety_level : "SAFE",
-          detected_allergens: Array.isArray(item.detected_allergens) ? item.detected_allergens : [],
-          brief_summary: String(item.brief_summary || "Processed item from menu."),
-        }))
+    // 1. Sanitize the string
+    let cleaned = rawResponse
+      .replace(/<think>[\s\S]*?<\/think>/gi, "") // Remove reasoning blocks
+      .replace(/<think>[\s\S]*$/gi, "") // Remove unclosed reasoning blocks if truncated
+      .replace(/```(?:json)?\s*([\s\S]*?)\s*```/gi, "$1") // Remove markdown code blocks
+      .replace(/```/g, "")
+      .trim();
+
+    // 2. Extract JSON payload between first '{' and last '}'
+    const firstBrace = cleaned.indexOf("{");
+    const lastBrace = cleaned.lastIndexOf("}");
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      cleaned = cleaned.substring(firstBrace, lastBrace + 1);
+    }
+
+    // 3. Parse JSON safely
+    let parsedData: any;
+    try {
+      parsedData = JSON.parse(cleaned);
+    } catch (parseErr) {
+      console.error("Menu Scan Parsing Error:", parseErr, "Cleaned text:", cleaned);
+      throw new Error("Failed to scan menu. Please ensure the image is clear and try again.");
+    }
+
+    // Normalize result format for the UI component
+    const menu_title = String(parsedData?.menu_title || "Identified Menu Section");
+    const rawDishes = Array.isArray(parsedData?.dishes)
+      ? parsedData.dishes
+      : Array.isArray(parsedData?.items)
+      ? parsedData.items
       : [];
 
-    return { items };
-  } catch (err: any) {
-    console.error("Error in analyzeBatchMenuWithGroq:", err);
-    throw new Error(err?.message || "Failed to analyze batch menu photo.");
+    const dishes: MenuDishItem[] = rawDishes.map((item: any) => {
+      const statusRaw = String(item?.safety_status || item?.safety_level || "SAFE").toUpperCase();
+      const safety_status: "SAFE" | "CAUTION" | "AVOID" = ["SAFE", "CAUTION", "AVOID"].includes(statusRaw)
+        ? (statusRaw as "SAFE" | "CAUTION" | "AVOID")
+        : "SAFE";
+
+      const flagged = Array.isArray(item?.flagged_ingredients)
+        ? item.flagged_ingredients.map(String)
+        : Array.isArray(item?.detected_allergens)
+        ? item.detected_allergens.map(String)
+        : [];
+
+      const makeItSafe = Array.isArray(item?.make_it_safe_instructions)
+        ? item.make_it_safe_instructions.map(String)
+        : [];
+
+      const summaryText = String(item?.summary || item?.brief_summary || item?.explanation || "Processed item from menu.");
+
+      return {
+        dish_name: String(item?.dish_name || item?.name || "Menu Item"),
+        price: String(item?.price || "N/A"),
+        safety_status,
+        summary: summaryText,
+        server_question: String(item?.server_question || item?.waiter_question || "Ask your server to verify ingredients."),
+        make_it_safe_instructions: makeItSafe,
+        flagged_ingredients: flagged,
+        safety_level: safety_status,
+        detected_allergens: flagged,
+        brief_summary: summaryText,
+      };
+    });
+
+    return {
+      menu_title,
+      dishes,
+      items: dishes,
+    };
+  } catch (error: any) {
+    console.error("Menu Scan Parsing Error:", error);
+    if (error?.message === "Failed to scan menu. Please ensure the image is clear and try again.") {
+      throw error;
+    }
+    throw new Error(error?.message || "Failed to scan menu. Please ensure the image is clear and try again.");
   }
 }
+
+/**
+ * Analyzes full menu page photo in batch using Groq vision model.
+ * Delegates to analyzeMenuImage for robust system prompt & parsing.
+ */
+export async function analyzeBatchMenuWithGroq(options: {
+  imageBase64: string;
+  restrictions: string[];
+  customNotes: string;
+}): Promise<BatchMenuResult> {
+  const result = await analyzeMenuImage(options.imageBase64, options.restrictions, options.customNotes);
+
+  const items: BatchMenuItem[] = (result.dishes || []).map((d) => ({
+    dish_name: d.dish_name,
+    safety_level: d.safety_status,
+    detected_allergens: d.flagged_ingredients,
+    brief_summary: d.summary,
+    price: d.price,
+    safety_status: d.safety_status,
+    summary: d.summary,
+    server_question: d.server_question,
+    make_it_safe_instructions: d.make_it_safe_instructions,
+    flagged_ingredients: d.flagged_ingredients,
+  }));
+
+  return {
+    menu_title: result.menu_title,
+    items,
+    dishes: items,
+  };
+}
+
