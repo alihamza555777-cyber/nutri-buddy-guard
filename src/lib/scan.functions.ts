@@ -102,12 +102,22 @@ export const saveScan = createServerFn({ method: "POST" })
     if (!user || !context.isAuthenticated) {
       throw new Error("Unauthorized: Login required to save scan.");
     }
-    const safetyVal = data.result.safety_level || (data.result as any).safety_status || "SAFE";
-    const { error } = await context.supabase.from("scan_history").insert({
+    const rawStatus =
+      (data.result as any).safety_status ||
+      data.result.safety_level ||
+      (data.result as any).safetyStatus ||
+      (data.result as any).status ||
+      "CAUTION";
+    const resolvedSafetyStatus = String(rawStatus).toUpperCase();
+    const validSafetyStatus = ["SAFE", "CAUTION", "AVOID"].includes(resolvedSafetyStatus)
+      ? resolvedSafetyStatus
+      : "CAUTION";
+
+    const insertPayload = {
       user_id: user.id,
-      dish_name: data.result.dish_name,
-      safety_level: safetyVal,
-      safety_status: safetyVal,
+      dish_name: data.result.dish_name || (data.result as any).dishName || "Unknown Dish",
+      safety_level: validSafetyStatus,
+      safety_status: validSafetyStatus,
       calories: data.result.calories,
       protein_g: data.result.protein_g,
       carbs_g: data.result.carbs_g,
@@ -115,11 +125,19 @@ export const saveScan = createServerFn({ method: "POST" })
       fiber_g: data.result.fiber_g,
       sugar_g: data.result.sugar_g,
       sodium_mg: data.result.sodium_mg,
-      flagged_ingredients: data.result.flagged_ingredients,
-      explanation: data.result.explanation,
-      waiter_question: data.result.waiter_question,
+      flagged_ingredients: data.result.flagged_ingredients || (data.result as any).flaggedIngredients || [],
+      explanation: data.result.explanation || (data.result as any).summary || "",
+      waiter_question: data.result.waiter_question || (data.result as any).serverQuestion || "",
       image_url: data.imageUrl,
-    });
+    };
+
+    if (!insertPayload.safety_status) {
+      console.error("Missing safety_status in payload:", insertPayload);
+      insertPayload.safety_status = "CAUTION";
+      insertPayload.safety_level = "CAUTION";
+    }
+
+    const { error } = await context.supabase.from("scan_history").insert(insertPayload);
 
     if (error) throw error;
     return { ok: true };

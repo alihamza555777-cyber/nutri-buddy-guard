@@ -192,13 +192,23 @@ function HomePage() {
       }
 
       // ── STEP 3: Build payload matching scan_history.Insert exactly ──
-      const safetyVal = String(scanResult.safety_level || (scanResult as any).safety_status || "SAFE");
+      const rawStatus =
+        (scanResult as any).safety_status ||
+        scanResult.safety_level ||
+        (scanResult as any).safetyStatus ||
+        (scanResult as any).status ||
+        "CAUTION";
+      const resolvedSafetyStatus = String(rawStatus).toUpperCase();
+      const validSafetyStatus = ["SAFE", "CAUTION", "AVOID"].includes(resolvedSafetyStatus)
+        ? resolvedSafetyStatus
+        : "CAUTION";
+
       const payload = {
         user_id: verifiedUserId,
-        dish_name: String(scanResult.dish_name || "Unknown Dish"),
+        dish_name: String(scanResult.dish_name || (scanResult as any).dishName || "Unknown Dish"),
         input_type: String(inputType),
-        safety_level: safetyVal,
-        safety_status: safetyVal,
+        safety_level: validSafetyStatus,
+        safety_status: validSafetyStatus,
         calories: typeof scanResult.calories === "number" ? scanResult.calories : (typeof n.calories === "number" ? n.calories : null),
         protein_g: typeof scanResult.protein_g === "number" ? scanResult.protein_g : (typeof n.protein_g === "number" ? n.protein_g : null),
         carbs_g: typeof scanResult.carbs_g === "number" ? scanResult.carbs_g : (typeof n.carbs_g === "number" ? n.carbs_g : null),
@@ -206,11 +216,20 @@ function HomePage() {
         fiber_g: typeof scanResult.fiber_g === "number" ? scanResult.fiber_g : (typeof n.fiber_g === "number" ? n.fiber_g : null),
         sugar_g: typeof scanResult.sugar_g === "number" ? scanResult.sugar_g : (typeof n.sugar_g === "number" ? n.sugar_g : null),
         sodium_mg: typeof scanResult.sodium_mg === "number" ? scanResult.sodium_mg : (typeof n.sodium_mg === "number" ? n.sodium_mg : null),
-        flagged_ingredients: Array.isArray(scanResult.flagged_ingredients) ? scanResult.flagged_ingredients : [],
-        explanation: String(scanResult.explanation || ""),
-        waiter_question: String(scanResult.server_question || scanResult.waiter_question || ""),
+        flagged_ingredients: Array.isArray(scanResult.flagged_ingredients)
+          ? scanResult.flagged_ingredients
+          : (Array.isArray((scanResult as any).flaggedIngredients) ? (scanResult as any).flaggedIngredients : []),
+        explanation: String(scanResult.explanation || (scanResult as any).summary || ""),
+        waiter_question: String(scanResult.server_question || (scanResult as any).serverQuestion || scanResult.waiter_question || ""),
         image_url: imageUrl,
       };
+
+      // Explicit pre-insert validation
+      if (!payload.safety_status) {
+        console.error("Missing safety_status in payload:", payload);
+        payload.safety_status = "CAUTION";
+        payload.safety_level = "CAUTION";
+      }
 
       console.log("[NutriGuard] INSERT payload:", JSON.stringify(payload));
 
